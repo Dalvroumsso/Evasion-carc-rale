@@ -89,7 +89,66 @@ function Game({ startingBonus }) {
         }
     }
   };
+// Dans ta fonction Game(), ajoute/modifie la logique handleAction :
 
+const handleAction = (action) => {
+  if (action.type === "move") {
+    if (Math.random() < 0.05) triggerShakedown();
+    setCurrentRoom(action.leads_to);
+    setTime(t => t + 10);
+  }
+
+  // --- LOGIQUE DU PARLOIR ---
+  if (action.type === "visiting_event") {
+    setTime(t => t + 60); // Un parloir dure 1h
+    
+    if (stats.reputation >= 40) {
+      // Si réputation haute, on reçoit de la contrebande
+      const possibleGifts = ["cigarettes", "livre_adulte", "dopant"];
+      const gift = possibleGifts[Math.floor(Math.random() * possibleGifts.length)];
+      setInventory(prev => [...prev, gift]);
+      addMessage(`🎁 Un proche t'a glissé discrètement : ${ITEMS_DB[gift].name}`);
+      setStats(s => ({ ...s, moral: s.moral + 10 }));
+    } else {
+      addMessage("👋 Ton parloir s'est bien passé, mais personne n'a pris de risque pour toi.");
+      setStats(s => ({ ...s, moral: s.moral + 5 }));
+    }
+  }
+
+  // ... (Garde les autres actions : sleep, train, etc.)
+};
+
+// --- AJOUT : Utilisation des objets depuis l'inventaire ---
+const useItem = (itemId, index) => {
+    if (itemId === "livre_adulte") {
+        setStats(s => ({ ...s, moral: Math.min(100, s.moral + 30) }));
+        setInventory(prev => prev.filter((_, i) => i !== index));
+        addMessage("📖 Tu lis en cachette... Ton moral remonte en flèche !");
+    }
+    if (itemId === "cigarettes") {
+        setStats(s => ({ ...s, moral: s.moral + 10, reputation: s.reputation + 2 }));
+        setInventory(prev => prev.filter((_, i) => i !== index));
+        addMessage("🚬 Une petite pause cigarette. Tu te sens plus zen.");
+    }
+    // ... autres objets
+};
+
+// Dans ton InventoryUI, modifie le clic :
+const InventoryUI = () => React.createElement("div", { className: "flex flex-wrap gap-2" },
+  inventory.map((itemId, i) => {
+    const item = ITEMS_DB[itemId] || { name: itemId, icon: "❓", illegal: false };
+    return React.createElement("div", { 
+      key: i, 
+      className: `item-icon ${item.illegal ? 'item-illegal' : ''} cursor-pointer group`,
+      onClick: () => useItem(itemId, i) // Permet d'utiliser l'objet
+    },
+      item.icon,
+      React.createElement("span", { className: "item-tooltip" }, `${item.name} (Cliquer pour utiliser)`)
+    );
+  })
+);
+
+  
   // --- RENDU ---
   return React.createElement("div", { className: "p-4 max-w-5xl mx-auto space-y-4 font-sans" },
     combatNpc && React.createElement("div", { className: "fixed inset-0 bg-black/90 z-50 flex items-center justify-center" },
@@ -141,3 +200,4 @@ function Game({ startingBonus }) {
     )
   );
 }
+
