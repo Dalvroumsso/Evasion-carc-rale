@@ -48,23 +48,63 @@ function Game({ startingBonus }) {
     return true;
   };
 
-  const handleAction = (action) => {
-    if (isShakedown) return;
+  // Dans ton composant Game, mets à jour handleAction :
 
+const handleAction = (action) => {
+    if (isShakedown) return;
+    const now = time % 1440;
+    const isNight = (now > 1320 || now < 360); // Entre 22h et 06h
+
+    // --- LOGIQUE DE MOUVEMENT & INFILTRATION ---
     if (action.type === "move") {
-      if (!checkAccess(action.leads_to)) return;
-      if (Math.random() < 0.10) {
-          setIsShakedown(true);
-          addMessage("🚨 FOUILLE !");
-          setTimeout(() => {
-            setInventory(prev => prev.filter(id => !ITEMS_DB[id].illegal));
-            setIsShakedown(false);
-          }, 2000);
-      }
-      setCurrentRoom(action.leads_to);
-      setTime(t => t + 10);
+        // Si on est dehors la nuit et qu'on ne va pas vers la cellule/isolement
+        if (isNight && action.leads_to !== "cell" && action.leads_to !== "solitary") {
+            
+            // Calcul du risque : 80% de base, réduit par l'agilité
+            // Si agilité = 15, risque = 80 - 45 = 35%
+            const detectionRisk = 0.80 - (stats.agilite * 0.03); 
+            
+            if (Math.random() < detectionRisk) {
+                addMessage("🚨 PATROUILLE ! Un gardien vous a repéré dans le noir !");
+                setStats(s => ({ ...s, reputation: Math.max(0, s.reputation - 5), moral: s.moral - 5 }));
+                setCurrentRoom("solitary"); // Direction le trou
+                setTime(t => t + 600); // On perd 10h en cellule d'isolement
+                return;
+            } else {
+                addMessage("👣 Vous vous glissez dans les ombres... (Discrétion réussie)");
+            }
+        }
+
+        // Fouille aléatoire classique (le jour seulement)
+        if (!isNight && Math.random() < 0.10) {
+            triggerShakedown();
+        }
+
+        setCurrentRoom(action.leads_to);
+        setTime(t => t + 10);
+        return;
     }
 
+    // --- LOGIQUE CANTINE ---
+    if (action.type === "eat_event") {
+        const sched = WORLD_DATA.schedule;
+        const openMidi = (now >= sched.canteen.start && now <= sched.canteen.end);
+        const openSoir = (now >= sched.canteen_evening.start && now <= sched.canteen_evening.end);
+
+        if (!openMidi && !openSoir) {
+            addMessage("🚫 La cantine est vide. Il n'y a rien à manger à cette heure.");
+            return;
+        }
+
+        setEnergy(Math.min(100, energy + 40));
+        setStats(s => ({ ...s, moral: Math.min(100, s.moral + 5) }));
+        setTime(t => t + 30);
+        addMessage("🍴 Repas terminé. +40 Énergie.");
+        setCurrentRoom("corridor");
+    }
+
+    // ... reste des actions (train, sleep, etc.)
+  
     if (action.type === "train") {
       if (energy >= action.energy) {
         setStats(s => ({ ...s, [action.stat]: s[action.stat] + 3 }));
@@ -72,14 +112,6 @@ function Game({ startingBonus }) {
         setTime(t => t + action.time);
         addMessage(`Entraînement fini. +3 ${action.stat}`);
       } else addMessage("Trop fatigué...");
-    }
-
-    if (action.type === "eat_event") {
-        setEnergy(Math.min(100, energy + 40));
-        setStats(s => ({ ...s, moral: Math.min(100, s.moral + 5) }));
-        setTime(t => t + 30);
-        addMessage("🍴 Repas pris. +40 Énergie.");
-        setCurrentRoom("corridor"); // On sort après manger
     }
 
     if (action.type === "visiting_event") {
@@ -136,3 +168,4 @@ function Game({ startingBonus }) {
     )
   );
 }
+
