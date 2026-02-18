@@ -1,18 +1,18 @@
 const CRIME_DATA = {
   "braquage": { 
     label: "Braquage de banque", 
-    stats: { force: 10, resistance: 10, intelligence: 2, charisme: 3, reputation: 5 },
-    desc: "Un profil physique solide. Tu sais encaisser et frapper."
+    stats: { force: 10, resistance: 8, intelligence: 2, agilite: 5, reputation: 5 },
+    desc: "Costaud et imposant. Difficile de passer inaperçu."
   },
   "trafic": { 
     label: "Trafic de stupéfiants", 
-    stats: { force: 5, resistance: 5, intelligence: 5, charisme: 5, reputation: 10 },
-    desc: "Profil équilibré. Tu connais déjà un peu le milieu criminel."
+    stats: { force: 4, resistance: 4, intelligence: 6, agilite: 10, reputation: 6 },
+    desc: "Vif et habitué à fuir la police. Très agile."
   },
   "fraude": { 
     label: "Cyber-criminalité", 
-    stats: { force: 2, resistance: 2, intelligence: 15, charisme: 11, reputation: 0 },
-    desc: "Très intelligent et éloquent, mais physiquement fragile."
+    stats: { force: 2, resistance: 2, intelligence: 15, agilite: 8, reputation: 3 },
+    desc: "Frêle, mais ses doigts de hacker sont d'une précision chirurgicale."
   }
 };
 
@@ -82,3 +82,4 @@ const WORLD_DATA = {
     yard: [{ id: "brute", name: "La Brute", x: "40%", y: "55%", force: 40 }]
   }
 };
+
