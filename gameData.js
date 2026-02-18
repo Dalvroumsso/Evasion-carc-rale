@@ -1,104 +1,84 @@
-// --- ORIGINES (RPG) ---
 const CRIME_DATA = {
   "braquage": { 
     label: "Braquage de banque", 
     stats: { force: 10, resistance: 10, intelligence: 2, charisme: 3, reputation: 5 },
-    desc: "Profil physique. Tu sais encaisser."
+    desc: "Un profil physique solide. Tu sais encaisser et frapper."
   },
   "trafic": { 
     label: "Trafic de stupéfiants", 
     stats: { force: 5, resistance: 5, intelligence: 5, charisme: 5, reputation: 10 },
-    desc: "Équilibré. Tu connais les codes."
+    desc: "Profil équilibré. Tu connais déjà un peu le milieu criminel."
   },
   "fraude": { 
     label: "Cyber-criminalité", 
     stats: { force: 2, resistance: 2, intelligence: 15, charisme: 11, reputation: 0 },
-    desc: "Fragile mais manipulateur."
+    desc: "Très intelligent et éloquent, mais physiquement fragile."
   }
 };
 
-// --- OBJETS & ICONES ---
 const ITEMS_DB = {
-  "brossette": { name: "Brossette", icon: "🪥", illegal: false, desc: "Sert à bricoler..." },
-  "savon": { name: "Savon", icon: "🧼", illegal: false, desc: "Pour l'hygiène (ou pire)." },
-  "shivan": { name: "Surin (Shivan)", icon: "🔪", illegal: true, desc: "Arme : Force +20 (Passif)" },
-  "cigarettes": { name: "Cigarettes", icon: "🚬", illegal: true, desc: "Utiliser : Moral +15, Reput +2" },
-  "livre_adulte": { name: "Magazines X", icon: "🔞", illegal: true, desc: "Utiliser : Moral +40" },
-  "dopant": { name: "Stéroïdes", icon: "💉", illegal: true, desc: "Utiliser : Énergie +50" },
-  "smartphone": { name: "Smartphone", icon: "📱", illegal: true, desc: "Rare. Intelligence +10" }
+  "brossette": { name: "Brossette", icon: "🪥", illegal: false },
+  "savon": { name: "Savon", icon: "🧼", illegal: false },
+  "cigarettes": { name: "Cigarettes", icon: "🚬", illegal: true },
+  "livre_adulte": { name: "Livre Adulte", icon: "🔞", illegal: true },
+  "shivan": { name: "Shivan", icon: "🔪", illegal: true },
+  "dopant": { name: "Dopant", icon: "🧪", illegal: true }
 };
 
-// --- CARTE & INTERACTIONS ---
 const WORLD_DATA = {
+  // Horaires de la prison
+  schedule: {
+    canteen: { start: 720, end: 840, label: "12h00 - 14h00" }, // Midi
+    canteen_evening: { start: 1080, end: 1200, label: "18h00 - 20h00" }, // Soir
+    yard: { start: 480, end: 1080, label: "08h00 - 18h00" },
+    visiting: { start: 540, end: 1020, label: "09h00 - 17h00" }
+  },
   rooms: {
     entrance: { 
-      name: "Accueil & Fouille",
-      hotspots: [{ id: "enter", label: "Entrer au Bloc A", action: { type: "move", leads_to: "corridor" } }]
-    },
-    corridor: { 
-      name: "Couloir Principal",
-      hotspots: [
-        { id: "toCell", label: "Ma Cellule", action: { type: "move", leads_to: "cell" } },
-        { id: "toYard", label: "Cour de promenade", action: { type: "move", leads_to: "yard" } },
-        { id: "toCanteen", label: "Cantine", action: { type: "move", leads_to: "canteen" } },
-        { id: "toVisiting", label: "Parloir", action: { type: "move", leads_to: "visiting_room" } },
-        { id: "toInfirmary", label: "Infirmerie", action: { type: "move", leads_to: "infirmary" } },
-        { id: "toShowers", label: "Douches", action: { type: "move", leads_to: "showers" } }
-      ]
+      name: "Accueil",
+      hotspots: [{ id: "toCorridor", label: "Entrer dans le bloc", action: { type: "move", leads_to: "corridor" } }]
     },
     cell: { 
-      name: "Votre Cellule",
+      name: "Cellule",
       hotspots: [
-        { id: "out", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
-        { id: "sleep", label: "Dormir (Reset Énergie)", action: { type: "sleep" } },
-        { id: "train_cell", label: "Pompes (+Force)", action: { type: "train", stat: "force", energy: 20, time: 20 } },
-        { id: "craft_shiv", label: "Fabriquer un Surin (Besoin: Brossette)", action: { type: "craft", req: "brossette", give: "shivan", energy: 30 } }
+        { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
+        { id: "pushups", label: "Pompes", action: { type: "train", stat: "force", energy: 20, time: 15 } },
+        { id: "sleep", label: "Dormir (Reset)", action: { type: "sleep" } }
+      ]
+    },
+    corridor: { 
+      name: "Couloir",
+      hotspots: [
+        { id: "toCell", label: "Ma Cellule", action: { type: "move", leads_to: "cell" } },
+        { id: "toYard", label: "Cour", action: { type: "move", leads_to: "yard" } },
+        { id: "toCanteen", label: "Cantine", action: { type: "move", leads_to: "canteen" } },
+        { id: "toVisiting", label: "Parloir", action: { type: "move", leads_to: "visiting_room" } }
       ]
     },
     yard: { 
-      name: "Cour",
+      name: "Cour de promenade",
       hotspots: [
-        { id: "out", label: "Rentrer", action: { type: "move", leads_to: "corridor" } },
-        { id: "muscle", label: "Musculation (+Force/Res)", action: { type: "train", stat: "resistance", energy: 30, time: 45 } }
+        { id: "toCorridor", label: "Rentrer", action: { type: "move", leads_to: "corridor" } },
+        { id: "train_yard", label: "Musculation", action: { type: "train", stat: "force", energy: 30, time: 45 } }
       ]
     },
     canteen: { 
       name: "Cantine",
       hotspots: [
-        { id: "out", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
-        { id: "eat", label: "Manger (+Énergie)", action: { type: "eat", energy_gain: 40, time: 30 } },
-        { id: "steal", label: "Voler un couteau (Risqué)", action: { type: "steal_knife" } }
+        { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
+        { id: "eat", label: "Manger", action: { type: "eat_event" } }
       ]
     },
     visiting_room: {
       name: "Parloir",
       hotspots: [
-        { id: "out", label: "Retour", action: { type: "move", leads_to: "corridor" } },
-        { id: "meet", label: "Rencontrer Contact (1h)", action: { type: "visiting_event" } }
+        { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
+        { id: "meet", label: "Parloir", action: { type: "visiting_event" } }
       ]
     },
-    infirmary: {
-      name: "Infirmerie",
-      hotspots: [
-        { id: "out", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
-        { id: "heal", label: "Se soigner (-Moral)", action: { type: "heal" } }
-      ]
-    },
-    showers: {
-      name: "Douches Communes",
-      hotspots: [
-         { id: "out", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
-         { id: "wash", label: "Se laver (+Moral)", action: { type: "wash" } }
-      ]
-    },
-    solitary: {
-      name: "ISOLEMENT (LE TROU)",
-      hotspots: [{ id: "wait", label: "Attendre...", action: { type: "wait_punishment" } }]
-    }
+    solitary: { name: "Le Trou", hotspots: [{ id: "wait", label: "Attendre...", action: { type: "wait_punishment" } }] }
   },
   npcs: {
-    yard: [{ id: "brute", name: "La Brute", x: "40%", y: "55%", force: 45 }],
-    canteen: [{ id: "cook", name: "Le Cuisistot", x: "80%", y: "40%", force: 10 }],
-    showers: [{ id: "psycho", name: "Le Fou", x: "20%", y: "50%", force: 30 }]
+    yard: [{ id: "brute", name: "La Brute", x: "40%", y: "55%", force: 40 }]
   }
 };
