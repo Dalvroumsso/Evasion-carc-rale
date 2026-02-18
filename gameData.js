@@ -7,6 +7,24 @@ const ITEMS_DB = {
   "dopant": { name: "Dopant", icon: "🧪", illegal: true, desc: "Boost d'énergie" }
 };
 
+const CRIME_DATA = {
+  "braquage": { 
+    label: "Braquage de banque", 
+    stats: { force: 10, resistance: 10, intelligence: 2, charisme: 3, reputation: 5 },
+    desc: "Un profil physique solide. Tu sais encaisser et frapper."
+  },
+  "trafic": { 
+    label: "Trafic de stupéfiants", 
+    stats: { force: 5, resistance: 5, intelligence: 5, charisme: 5, reputation: 10 },
+    desc: "Profil équilibré. Tu connais déjà un peu le milieu criminel."
+  },
+  "fraude": { 
+    label: "Cyber-criminalité", 
+    stats: { force: 2, resistance: 2, intelligence: 15, charisme: 11, reputation: 0 },
+    desc: "Très intelligent et éloquent, mais physiquement fragile."
+  }
+};
+
 const WORLD_DATA = {
   rooms: {
     entrance: { 
@@ -78,3 +96,4 @@ const WORLD_DATA = {
     visiting_room: [{ id: "visitor", name: "Visiteur", x: "50%", y: "50%", force: 0 }]
   }
 };
+
