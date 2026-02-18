@@ -14,7 +14,7 @@ const WORLD_DATA = {
         { id: "pushups", label: "Pompes (Force)", action: { type: "train", stat: "force", energy: 25, time: 10 } },
         { id: "situps", label: "Abdos (Résistance)", action: { type: "train", stat: "resistance", energy: 25, time: 10 } },
         { id: "craft_shivan", label: "Tailler un Shivan (Brossette)", action: { type: "craft", from: "brossette", to: "shivan" } },
-        { id: "craft_soap", label: "Attacher Savon (Corde + Savon)", action: { type: "craft_complex", materials: ["corde", "savon"], result: "savon_corde" } },
+        { id: "craft_soap", label: "Attacher Savon", action: { type: "craft_complex", materials: ["corde", "savon"], result: "savon_corde" } },
         { id: "sleep", label: "Dormir", action: { type: "sleep" } }
       ]
     },
@@ -33,12 +33,18 @@ const WORLD_DATA = {
         { id: "take_shower", label: "Se doucher (+20 Énergie)", action: { type: "shower_risk" } }
       ]
     },
-    yard: { name: "Cour", image: "images/yard.png", hotspots: [{ id: "toCorridor", label: "Entrer", action: { type: "move", leads_to: "corridor" } }] }
+    yard: { 
+      name: "Cour", image: "images/yard.png", 
+      hotspots: [
+        { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
+        { id: "train_yard", label: "Soulever des fontes", action: { type: "train", stat: "force", energy: 30, time: 20 } }
+      ]
+    }
   },
   npcs: {
-    yard: [
-      { id: "big_tony", name: "Big Tony", x: "50%", y: "40%", gang: "musclés", force: 40, dialogue: "Tu veux tâter de mes poings ?" },
-      { id: "dealer", name: "Le Dealer", x: "80%", y: "50%", gang: "neutre", force: 5, dialogue: "3 clopes pour du dopant.", trade: { take: "cigarette", give: "dopant", amount: 3, message: "Tiens, ça va booster tes pompes." } }
-    ]
+    cell: [],
+    corridor: [],
+    showers: [{ id: "dealer", name: "Le Dealer", x: "70%", y: "60%", force: 20, trade: true }],
+    yard: [{ id: "brute", name: "La Brute", x: "40%", y: "55%", force: 40 }]
   }
 };
