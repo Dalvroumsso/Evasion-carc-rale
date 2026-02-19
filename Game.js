@@ -71,9 +71,9 @@ function Game({ startingBonus }) {
         setCurrentRoom("solitary");
       }
     } else {
-      addMessage("🤕 K.O... Tu te réveilles en cellule.");
+      addMessage("🤕 K.O... Tu te réveilles à l'infirmerie");
       setEnergy(20);
-      setCurrentRoom("cell");
+      setCurrentRoom("infirmary");
     }
     setCombatNpc(null);
   };
@@ -272,11 +272,13 @@ function Game({ startingBonus }) {
     ),
 
     // --- HUD 6 COLONNES ---
-    React.createElement("div", { className: "grid grid-cols-6 gap-2 bg-gray-900 p-4 rounded-xl border border-blue-900 shadow-xl text-white" },
+    React.createElement("div", { className: "grid grid-cols-4 md:grid-cols-8 gap-2 bg-gray-900 p-4 rounded-xl border border-blue-900 shadow-xl text-white" },
       React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-green-400 font-bold" }, "⚡ ÉNERGIE"), React.createElement("p", { className: "text-xl font-black" }, energy + "%")),
-      React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-yellow-500 font-bold" }, "🔥 REPUTATION"), React.createElement("p", { className: "text-xl font-black" }, stats.reputation)),
-      React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-red-500 font-bold" }, "💪 FORCE"), React.createElement("p", { className: "text-xl font-black" }, stats.force)),
-      React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-purple-400 font-bold" }, "🏃 AGILITÉ"), React.createElement("p", { className: "text-xl font-black" }, stats.agilite)),
+      React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-yellow-500 font-bold" }, "🔥 REPUTATION"), React.createElement("p", { className: "text-xl font-black" }, stats.reputation || 0)),
+      React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-red-500 font-bold" }, "💪 FORCE"), React.createElement("p", { className: "text-xl font-black" }, stats.force || 0)),
+      React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-purple-400 font-bold" }, "🏃 AGILITÉ"), React.createElement("p", { className: "text-xl font-black" }, stats.agilite || 0)),
+      React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-orange-400 font-bold" }, "🛡️ RÉSISTANCE"), React.createElement("p", { className: "text-xl font-black" }, stats.resistance || 0)),  
+      React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-blue-400 font-bold" }, "🧠 INTELLIGENCE"), React.createElement("p", { className: "text-xl font-black" }, stats.intelligence || 0)),                       
       React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-blue-300 font-bold" }, "🕒 HEURE"), React.createElement("p", { className: "text-xl font-black" }, formatTime(time))),
       React.createElement("div", { className: "text-right" }, React.createElement("p", { className: "text-[10px] text-blue-500 font-bold" }, "ZONE"), React.createElement("p", { className: "text-[10px] font-bold uppercase truncate" }, WORLD_DATA.rooms[currentRoom].name))
     ),
@@ -311,5 +313,6 @@ function Game({ startingBonus }) {
     )
   );
 }
+
 
 
