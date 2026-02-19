@@ -1,30 +1,24 @@
 /**
- * Fichier : main.js
- * Rôle : Gestionnaire d'état principal (App Shell)
- * Gère la navigation entre le Menu, l'Intro (Création de perso + Bus) et le Jeu.
+ * Rôle : Gestionnaire d'état principal.
+ * Gère la transition entre les écrans et conserve les statistiques du joueur.
  */
-
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
 function App() {
-  // Étapes possibles : "start" (Menu) -> "intro" (Crime + Bus) -> "game" (Prison)
-  const [step, setStep] = React.useState("start");
+  const [step, setStep] = React.useState("start"); // "start" -> "intro" -> "game"
 
-  // Statistiques initiales (seront remplies durant l'IntroScene)
+  // Statistiques initiales complètes
   const [initialStats, setInitialStats] = React.useState({
     force: 0,
     resistance: 0,
     reputation: 0,
     intelligence: 0,
-    agilite: 5,
     charisme: 0,
-    moral: 50 // Valeur par défaut
+    agilite: 5,  // Requis pour l'infiltration nocturne
+    moral: 50    // Requis pour l'équilibre mental
   });
 
-  /**
-   * Met à jour une statistique spécifique.
-   * Utilisé par l'IntroScene pour appliquer les bonus du crime et du bus.
-   */
+  // Fonction pour cumuler les points gagnés durant l'introduction
   const updateInitialStats = (stat, points) => {
     setInitialStats(prev => ({ 
       ...prev, 
@@ -32,33 +26,27 @@ function App() {
     }));
   };
 
-  /**
-   * Gère le rendu conditionnel selon l'état du jeu
-   */
-  
-  // 1. ÉCRAN TITRE (MENU PRINCIPAL)
+  // --- RENDU CONDITIONNEL ---
+
+  // 1. Écran de titre
   if (step === "start") {
     return React.createElement(StartScreen, { 
       onStart: () => setStep("intro") 
     });
   }
 
-  // 2. SCÈNE D'INTRODUCTION (Choix du crime & Événement du Bus)
+  // 2. Scène d'introduction (Bus)
   if (step === "intro") {
     return React.createElement(IntroScene, { 
       onComplete: () => setStep("game"),
-      updateStats: updateInitialStats,
-      initialStats: initialStats // Passé pour les tests de résistance dans le bus
+      updateStats: updateInitialStats 
     });
   }
 
-  // 3. LE JEU PRINCIPAL (Blackridge Prison)
-  // On passe 'initialStats' au composant Game sous le nom 'startingBonus'
+  // 3. Le Jeu Principal (Blackridge Prison)
   return React.createElement(Game, { 
     startingBonus: initialStats 
   });
 }
 
-// Rendu de l'application
 root.render(React.createElement(App));
-
