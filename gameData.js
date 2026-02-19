@@ -114,7 +114,7 @@ const WORLD_DATA = {
         { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
         { id: "tv", label: "Desactiver les cameras", action: { type: "hack" } }
       ]
-    }
+    },
     solitary: {
       name: "Le Trou (Isolement)",
       hotspots: [
@@ -138,3 +138,4 @@ const WORLD_DATA = {
     ]
   }
 };
+
