@@ -1,53 +1,64 @@
-function IntroScene({ onComplete, updateStats, initialStats }) {
-  const [step, setStep] = React.useState("crime_choice");
+function IntroScene({ onComplete, updateStats }) {
+  const [currentStep, setCurrentStep] = React.useState("start");
+  const data = INTRO_DATA[currentStep];
 
-  const handleConfrontation = () => {
-    // Test de résistance : le crime "Braquage" passe, "Fraude" échoue.
-    if (initialStats.resistance >= 8) {
-      updateStats("reputation", 10);
-      updateStats("moral", 10);
-      alert("Tu restes debout. Le gardien grogne mais n'insiste pas. +10 Reput.");
-    } else {
-      updateStats("reputation", -5);
-      updateStats("moral", -10);
-      alert("Le coup t'assomme à moitié. Tu t'écroules. -5 Reput.");
+  const handleChoice = (choice) => {
+    // Appliquer la récompense du choix s'il y en a une
+    if (choice.reward) {
+      updateStats(choice.reward.stat, choice.reward.points);
     }
-    onComplete();
+    
+    // Appliquer la récompense de l'étape (ex: les 5 points de réputation à la fin)
+    if (data.reward && choice.target === "fin_intro") {
+      updateStats(data.reward.stat, data.reward.points);
+    }
+
+    if (choice.target === "fin_intro" || !INTRO_DATA[choice.target]) {
+      onComplete();
+    } else {
+      setCurrentStep(choice.target);
+    }
   };
 
-  if (step === "crime_choice") {
-    return React.createElement("div", { className: "h-screen bg-black flex flex-col items-center justify-center p-6" },
-      React.createElement("h2", { className: "text-gray-400 uppercase tracking-widest mb-8" }, "Motif de condamnation"),
-      React.createElement("div", { className: "grid gap-4 w-full max-w-md" },
-        Object.entries(CRIME_DATA).map(([key, data]) => 
-          React.createElement("button", {
-            key: key,
-            className: "p-4 bg-gray-900 border border-gray-800 hover:border-red-600 text-left transition-all",
-            onClick: () => {
-              Object.entries(data.stats).forEach(([s, v]) => updateStats(s, v));
-              setStep("bus");
-            }
-          }, 
-            React.createElement("div", { className: "font-bold text-white" }, data.label),
-            React.createElement("div", { className: "text-[10px] text-gray-500" }, data.desc)
+  return React.createElement("div", { className: "fixed inset-0 bg-black flex flex-col font-sans select-none" },
+    // Zone Image
+    React.createElement("div", { className: "relative flex-1 overflow-hidden" },
+      React.createElement("img", { 
+        src: data.background, 
+        className: "w-full h-full object-cover opacity-50 transition-opacity duration-1000" 
+      }),
+      (data.characters || []).map(char => 
+        React.createElement("img", {
+          key: char.id,
+          src: `images/npcs/${char.id}.png`,
+          className: "absolute bottom-0 left-1/2 -translate-x-1/2 h-[80%] w-auto object-contain animate-in slide-in-from-bottom-10 duration-700",
+          onError: (e) => { e.target.src = "https://via.placeholder.com/300x600?text=Gardien"; }
+        })
+      )
+    ),
+    // Zone Dialogue et Choix
+    React.createElement("div", { className: "h-2/5 bg-gray-900 border-t-4 border-blue-900 p-6 flex flex-col shadow-[0_-20px_50px_rgba(0,0,0,0.8)]" },
+      React.createElement("div", { className: "flex-1 overflow-y-auto mb-4 custom-scrollbar" },
+        data.dialogues.map((d, i) => 
+          React.createElement("p", { key: i, className: "text-lg md:text-xl text-gray-200 mb-3 leading-relaxed" },
+            React.createElement("span", { className: "text-blue-400 font-bold italic" }, d.speaker + " : "),
+            d.text
           )
         )
-      )
-    );
-  }
-
-  return React.createElement("div", { className: "h-screen bg-black flex flex-col" },
-    React.createElement("div", { className: "flex-1 flex items-center justify-center text-gray-600 italic" }, "[ Trajet en bus vers la prison ]"),
-    React.createElement("div", { className: "p-8 bg-gray-950 border-t-2 border-red-600" },
-      step === "bus" ? React.createElement(React.Fragment, null,
-        React.createElement("p", { className: "mb-6 text-white" }, "Un gardien te fixe méchamment dans le bus..."),
-        React.createElement("div", { className: "flex gap-4" },
-          React.createElement("button", { className: "px-4 py-2 bg-gray-800 text-xs font-bold", onClick: () => { updateStats("intelligence", 1); onComplete(); } }, "Baisser les yeux (+1 Intel)"),
-          React.createElement("button", { className: "px-4 py-2 bg-red-600 text-xs font-black", onClick: () => setStep("fight") }, "Soutenir le regard")
-        )
-      ) : React.createElement(React.Fragment, null,
-        React.createElement("p", { className: "mb-6 text-red-500 font-bold" }, "Le gardien lève sa matraque. Tu restes fixé dans ses yeux ?"),
-        React.createElement("button", { className: "px-6 py-3 bg-red-600 font-black", onClick: handleConfrontation }, "NE PAS CILLER")
+      ),
+      React.createElement("div", { className: "flex flex-wrap gap-4 justify-center pb-4" },
+        data.choices.length > 0 
+          ? data.choices.map((choice, i) => 
+              React.createElement("button", {
+                key: i,
+                onClick: () => handleChoice(choice),
+                className: "px-6 py-3 bg-gray-800 border-2 border-gray-700 hover:border-blue-500 hover:bg-gray-700 text-white transition-all rounded-lg text-sm font-bold uppercase tracking-widest"
+              }, choice.text)
+            )
+          : React.createElement("button", {
+              onClick: onComplete,
+              className: "px-8 py-4 bg-blue-700 hover:bg-blue-600 text-white font-black rounded-full shadow-lg shadow-blue-900/50 animate-bounce"
+            }, "COMMENCER MA PEINE")
       )
     )
   );
