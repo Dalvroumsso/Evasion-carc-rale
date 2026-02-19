@@ -9,12 +9,12 @@ function Game({ startingBonus }) {
   const [tradeNpc, setTradeNpc] = React.useState(null);
   
   const [stats, setStats] = React.useState({ 
-    force: startingBonus.force, 
-    reputation: startingBonus.reputation,
-    intelligence: startingBonus.intelligence,
-    resistance: startingBonus.resistance,
+    force: startingBonus.force || 5, 
+    reputation: startingBonus.reputation || 0,
+    intelligence: startingBonus.intelligence || 5,
+    resistance: startingBonus.resistance || 5,
     agilite: startingBonus.agilite || 5, // Ajout de l'agilité
-    moral: startingBonus.moral
+    moral: startingBonus.moral || 50
   });
   
   const [energy, setEnergy] = React.useState(100);
@@ -311,3 +311,4 @@ function Game({ startingBonus }) {
     )
   );
 }
+
