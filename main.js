@@ -16,6 +16,7 @@ function App() {
     resistance: 0,
     reputation: 0,
     intelligence: 0,
+    agilite: 5,
     charisme: 0,
     moral: 50 // Valeur par défaut
   });
@@ -60,3 +61,4 @@ function App() {
 
 // Rendu de l'application
 root.render(React.createElement(App));
+
