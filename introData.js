@@ -3,7 +3,7 @@ const INTRO_DATA = {
   "start": {
     background: "images/courthouse.png",
     dialogues: [{ speaker: "Juge", text: "Accusé, levez-vous. Rappelez à la cour la nature de vos actes." }],
-    characters": [{ "id": "juge_Malory", "name": "La Juge", "x": "50%", "y": "50%"}],
+    characters: [{ "id": "juge_Malory", "name": "La Juge", "x": "50%", "y": "50%"}],
     choices: [
       { text: "Braquage à main armée (Force +10, Reput +5)", target: "bus_arrival", reward: { stat: "force", points: 10 } },
       { text: "Cyber-fraude massive (Intell +10, Agilité +5)", target: "bus_arrival", reward: { stat: "intelligence", points: 10 } },
@@ -61,4 +61,5 @@ const INTRO_DATA = {
     choices: [] 
   }
 };
+
 
