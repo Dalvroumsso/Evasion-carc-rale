@@ -26,15 +26,6 @@ const WORLD_DATA = {
   },
 
   rooms: {
-    cell: { 
-      name: "Votre Cellule", 
-      hotspots: [
-        { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
-        { id: "pushups", label: "Pompes (Force)", action: { type: "train", stat: "force", energy: 25, time: 10 } },
-        { id: "situps", label: "Abdos (Résistance)", action: { type: "train", stat: "resistance", energy: 25, time: 10 } },
-        { id: "sleep", label: "Dormir", action: { type: "sleep" } }
-      ]
-    },
     corridor: { 
       name: "Couloir Principal", 
       hotspots: [
@@ -42,7 +33,21 @@ const WORLD_DATA = {
         { id: "toShowers", label: "Douches", action: { type: "move", leads_to: "showers" } },
         { id: "toYard", label: "Cour", action: { type: "move", leads_to: "yard" } },
         { id: "toCanteen", label: "Cantine", action: { type: "move", leads_to: "canteen" } },
-        { id: "toParlor", label: "Parloir", action: { type: "move", leads_to: "visiting_room" } }
+        { id: "toParlor", label: "Parloir", action: { type: "move", leads_to: "visiting_room" } },
+      	{ id: "toCommon", label: "Salle commune", action: { type: "move", leads_to: "common" } },
+	      { id: "toEntrance", label: "Entree", action: { type: "move", leads_to: "entrance" } },
+      	{ id: "toInfirmary", label: "Infirmerie", action: { type: "move", leads_to: "infirmary" } },
+      	{ id: "toOffice", label: "Bureau du directeur", action: { type: "move", leads_to: "office" } },
+      	{ id: "toSecurity", label: "Salle des cameras", action: { type: "move", leads_to: "security" } }
+      ]
+    },
+    cell: { 
+      name: "Votre Cellule", 
+      hotspots: [
+        { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
+        { id: "pushups", label: "Pompes (Force)", action: { type: "train", stat: "force", energy: 25, time: 10 } },
+        { id: "situps", label: "Abdos (Résistance)", action: { type: "train", stat: "resistance", energy: 25, time: 10 } },
+        { id: "sleep", label: "Dormir", action: { type: "sleep" } }
       ]
     },
     showers: {
@@ -73,6 +78,43 @@ const WORLD_DATA = {
         { id: "visit", label: "Parler au visiteur", action: { type: "visiting_event" } }
       ]
     },
+    entrance: {
+      name: "Entree",
+      hotspots: [
+        { id: "toCorridor", label: "Entrer dans la prison", action: { type: "move", leads_to: "corridor" } },
+        { id: "entranceid", label: "Parler au garde", action: { type: "entrance_event" } }
+      ]
+    },
+    common: {
+      name: "Salle commune",
+      hotspots: [
+        { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
+        { id: "tv", label: "Regarder la tele", action: { type: "watch_tv" } }
+      ]
+    },
+    infirmary: {
+      name: "Infirmerie",
+      hotspots: [
+        { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
+        { id: "infirmaryid", label: "Parler avec l'infermiere", action: { type: "infirmary_event" } },
+	{ id: "infirmary_steal", label: "Voler des produits", action: { type: "infirmary_event_steal" } }
+      ]
+    },
+    office: {
+      name: "Bureau du directeur",
+      hotspots: [
+        { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
+        { id: "tv", label: "Demander des privileges", action: { type: "upgrade" } },
+	{ id: "tv", label: "Balancer des infos", action: { type: "rat" } }
+      ]
+    },
+    security: {
+      name: "Salle des cameras",
+      hotspots: [
+        { id: "toCorridor", label: "Sortir", action: { type: "move", leads_to: "corridor" } },
+        { id: "tv", label: "Desactiver les cameras", action: { type: "hack" } }
+      ]
+    }
     solitary: {
       name: "Le Trou (Isolement)",
       hotspots: [
