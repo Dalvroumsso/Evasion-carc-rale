@@ -1,3 +1,33 @@
+const GAME_SETTINGS = {
+  // Limites des statistiques
+  STATS: { MIN: 0, MAX: 100, STARTING_ENERGY: 100, STARTING_MORAL: 50 },
+  
+  // Économie (Cigarettes)
+  ECONOMY: {
+    BUY_DIVIDER: 5,  // Prix d'achat = Valeur / 5
+    SELL_DIVIDER: 10 // Prix de vente = Valeur / 10
+  },
+  
+  // Combat
+  COMBAT: {
+    BASE_HP: 20,
+    BASE_DAMAGE: 5,
+    SPAWN_SPEED_BASE: 1200,
+    SPAWN_SPEED_MIN: 400,
+    TARGET_TIMEOUT: 1000,
+    REPUTATION_WIN: 15,
+    REPUTATION_LOSS: 5,
+    PRISON_RISK: 0.4
+  },
+
+  // Temps
+  TIME: {
+    TICK_SPEED: 10, // Minutes par action de base
+    DAY_START: 480, // 08:00
+    DAY_END: 1440   // Minuit
+  }
+};
+
 const ITEMS_DB = {
   "brossette": { name: "Brossette", icon: "🪥", illegal: false, value: 0 },
   "savon": { name: "Savon", icon: "🧼", illegal: false, value: 1 },
@@ -138,4 +168,3 @@ const WORLD_DATA = {
     ]
   }
 };
-
