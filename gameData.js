@@ -65,7 +65,7 @@ const WORLD_DATA = {
         { id: "toCanteen", label: "Cantine", action: { type: "move", leads_to: "canteen" } },
         { id: "toParlor", label: "Parloir", action: { type: "move", leads_to: "visiting_room" } },
       	{ id: "toCommon", label: "Salle commune", action: { type: "move", leads_to: "common" } },
-	      { id: "toEntrance", label: "Entree", action: { type: "move", leads_to: "entrance" } },
+	{ id: "toEntrance", label: "Entree", action: { type: "move", leads_to: "entrance" } },
       	{ id: "toInfirmary", label: "Infirmerie", action: { type: "move", leads_to: "infirmary" } },
       	{ id: "toOffice", label: "Bureau du directeur", action: { type: "move", leads_to: "office" } },
       	{ id: "toSecurity", label: "Salle des cameras", action: { type: "move", leads_to: "security" } }
@@ -157,10 +157,25 @@ const WORLD_DATA = {
     cell: [],
     corridor: [{ id: "garde_corridor", name: "Gardien Jones", x: "85%", y: "40%", type: "fight", force: 40, icon: "👮" }],
     showers: [
-      { id: "dealer", name: "Le Dealer", x: "70%", y: "60%", type: "trade", inventory: ["dopant", "savon"], dialog: "Besoin d'un remède pour tenir le coup ?" }
+      { 
+	id: "dealer", 
+	name: "Le Dealer", 
+	x: "70%", y: "60%", 
+	type: "trade", inventory: ["dopant", "savon"], 
+	dialog: "Besoin d'un remède pour tenir le coup ?"
+	personnality: "coward"
+	charm_threshehold: 20
+      }
     ],
     yard: [
-      { id: "brute", name: "La Brute", x: "40%", y: "55%", force: 50, type: "fight", icon: "👺" },
+      { 
+	id: "brute", name: "La Brute", 
+	x: "40%", y: "55%", 
+	force: 50, type: "fight", 
+	icon: "👺", 
+	personnality: "aggressive", 
+	charm_threshold: 80 
+      },
       { id: "rat", name: "Le Rat", x: "70%", y: "60%", type: "trade", inventory: ["shivan", "cigarettes", "corde"], dialog: "Rien n'est gratuit ici..." }
     ],
     canteen: [
