@@ -155,16 +155,31 @@ const WORLD_DATA = {
 
   npcs: {
     cell: [],
-    corridor: [],
+    corridor: [{ id: "garde_corridor", name: "Gardien Jones", x: "85%", y: "40%", type: "fight", force: 40, icon: "👮" }],
     showers: [
       { id: "dealer", name: "Le Dealer", x: "70%", y: "60%", type: "trade", inventory: ["dopant", "savon"], dialog: "Besoin d'un remède pour tenir le coup ?" }
     ],
     yard: [
-      { id: "brute", name: "La Brute", x: "40%", y: "55%", force: 40, type: "fight", icon: "👺" },
+      { id: "brute", name: "La Brute", x: "40%", y: "55%", force: 50, type: "fight", icon: "👺" },
       { id: "rat", name: "Le Rat", x: "70%", y: "60%", type: "trade", inventory: ["shivan", "cigarettes", "corde"], dialog: "Rien n'est gratuit ici..." }
     ],
     canteen: [
       { id: "vieux", name: "Le Vieux", x: "30%", y: "50%", type: "trade", inventory: ["livre_adulte", "savon"], dialog: "Le savoir, c'est la seule liberté." }
-    ]
+    ],
+    infirmary : [
+	{id: "Jocelyn",name:"Jocelyn",x: "30%", y: "50%", type: "charm", ."
+    ],
+    office:[
+	{}
+    ],
+    common:[
+	{}
+    ],
+    entrance:[
+	{}
+    ],
+    cell:[
+	{}
+    ],
   }
 };
