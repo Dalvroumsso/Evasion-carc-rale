@@ -183,7 +183,8 @@ const handleAction = (action) => {
         } else {
           addMessage(`💬 ${npc.name} : "${npc.dialog || "Ouais, c'est ça..."}"`);
       } 
-      
+    }
+ 
 	else if (subType === "charm") {
           if (isAssocial) {
           addMessage(`🚫 ${npc.name} est associal. Tes tentatives de flirt l'irritent plus qu'autre chose.`);
