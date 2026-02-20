@@ -3,10 +3,10 @@ function Game({ startingBonus }) {
   const [inventory, setInventory] = React.useState(["brossette", "savon"]);
   const [messages, setMessages] = React.useState([{ text: "Bienvenue à Blackridge.", id: Date.now() }]);
   const [isShakedown, setIsShakedown] = React.useState(false);
-  
+  const [interactingNpc, setInteractingNpc] = React.useState(null);
   const [combatNpc, setCombatNpc] = React.useState(null);
   const [tradeNpc, setTradeNpc] = React.useState(null);
-  
+  const [relations, setRelations] = React.useState({});
   const [stats, setStats] = React.useState({ 
     force: startingBonus.force || 0, 
     reputation: startingBonus.reputation || 0,
@@ -27,7 +27,7 @@ function Game({ startingBonus }) {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   };
 
-  // --- LOGIQUE DE TROC (À insérer ici) ---
+  // --- LOGIQUE DE TROC ---
   const buyItem = (itemId) => {
     const item = ITEMS_DB[itemId];
     const cost = Math.ceil(item.value / 5);
@@ -88,12 +88,14 @@ function Game({ startingBonus }) {
     setInventory(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleAction = (action) => {
+const handleAction = (action) => {
     if (isShakedown) return;
     const now = time % 1440;
     const isNight = (now > 1320 || now < 360);
 
+    // --- 1. DÉPLACEMENTS ---
     if (action.type === "move") {
+      // Risque de patrouille la nuit si on n'est pas en cellule
       if (isNight && !["cell", "solitary"].includes(action.leads_to)) {
         const detectionRisk = 0.80 - (stats.agilite * 0.03); 
         if (Math.random() < detectionRisk) {
@@ -104,16 +106,21 @@ function Game({ startingBonus }) {
           return;
         }
       }
+      // Risque de fouille aléatoire le jour
       if (!isNight && Math.random() < 0.10) triggerShakedown();
+      
       setCurrentRoom(action.leads_to);
       setTime(t => t + 10);
     }
 
-    if (action.type === "eat_event") {
+    // --- 2. CANTINE (REPAS) ---
+    else if (action.type === "eat_event") {
       const sched = WORLD_DATA.schedule;
       const isOpen = (now >= sched.canteen.start && now <= sched.canteen.end) || 
                      (now >= sched.canteen_evening.start && now <= sched.canteen_evening.end);
+      
       if (!isOpen) return addMessage("🚫 La cantine est fermée.");
+      
       setEnergy(Math.min(100, energy + 40));
       setStats(s => ({ ...s, moral: Math.min(100, s.moral + 5) }));
       setTime(t => t + 30);
@@ -121,47 +128,158 @@ function Game({ startingBonus }) {
       setCurrentRoom("corridor");
     }
 
-    if (action.type === "train") {
+    // --- 3. ENTRAÎNEMENT ---
+    else if (action.type === "train") {
       if (energy >= action.energy) {
         setStats(s => ({ ...s, [action.stat]: s[action.stat] + 3 }));
         setEnergy(e => e - action.energy);
         setTime(t => t + (action.time || 45));
         addMessage(`👊 Entraînement : +3 ${action.stat}`);
-      } else addMessage("⚠️ Trop fatigué...");
+      } else {
+        addMessage("⚠️ Trop fatigué pour s'entraîner...");
+      }
     }
 
-    if (action.type === "visiting_event") {
+    // --- 4. PARLOIR (VISITE) ---
+    else if (action.type === "visiting_event") {
       setTime(t => t + 60);
       if (stats.reputation >= 40) {
         const gift = Math.random() > 0.5 ? "cigarettes" : "livre_adulte";
         setInventory(prev => [...prev, gift]);
         addMessage(`🎁 Un proche a glissé un objet : ${ITEMS_DB[gift].name}`);
       } else {
-        setStats(s => ({ ...s, moral: Math.min(100, s.moral + 10) }));
+        setStats(s => ({ ...s, moral: Math.min(100, s.moral + 15) }));
         addMessage("👋 Une visite qui fait du bien au moral.");
       }
     }
 
-    if (action.type === "sleep") {
-      setTime(480); 
+    // --- 5. SOMMEIL ---
+    else if (action.type === "sleep") {
+      setTime(480); // Réveil à 08:00
       setEnergy(100);
+      setStats(s => ({ ...s, moral: Math.min(100, s.moral + 5) }));
       addMessage("🌞 Une nouvelle journée commence.");
     }
 
-    if (action.type === "wait_punishment") {
+    // --- 6. FIN DE PUNITION ---
+    else if (action.type === "wait_punishment") {
       setCurrentRoom("cell");
       setTime(t => t + 60);
       addMessage("Fin de peine. Retour en cellule.");
     }
+
+
+// --- 7. ACTIONS SOCIALES (PNJ) ---
+    else if (action.type === "social") {
+      const { subType, npc } = action;
+      const npcId = npc.id;
+      const isAssocial = npc.personalities?.includes("associal");
+      
+      if (subType === "talk") {
+        const success = Math.random() < (stats.intelligence / 100 + 0.4);
+        if (success) {
+          setStats(s => ({ ...s, reputation: s.reputation + 2 }));
+          addMessage(`💬 Tu discutes avec ${npc.name}. On commence à respecter ton nom. (+2 Rép)`);
+        } else {
+          addMessage(`💬 ${npc.name} : "${npc.dialog || "Ouais, c'est ça..."}"`);
+      } 
+      
+	else if (subType === "charm") {
+          if (isAssocial) {
+          addMessage(`🚫 ${npc.name} est associal. Tes tentatives de flirt l'irritent plus qu'autre chose.`);
+          setRelations(prev => ({ ...prev, [npcId]: (prev[npcId] || 0) - 2 }));
+        } else {
+          // On gagne +5 points de relation
+          setRelations(prev => ({ ...prev, [npcId]: (prev[npcId] || 0) + 5 }));
+          
+          const currentRel = (relations[npcId] || 0) + 5;
+          addMessage(`❤️ Tu flirtes avec ${npc.name}. Affinité : ${currentRel} points.`);
+          
+          if (currentRel >= 50) {
+            addMessage(`🔥 ${npc.name} semble être sous ton charme total.`);
+          }
+        }
+      } 
+      
+      else if (subType === "humiliate") {
+        setStats(s => ({ ...s, reputation: s.reputation + 5, moral: s.moral + 2 }));
+        addMessage(`🔥 Tu as humilié ${npc.name} devant tout le monde ! (+5 Réput)`);
+        
+        // --- LOGIQUE D'AGRESSION ---
+        // Le PNJ attaque s'il est strictement plus fort que le joueur
+        if (npc.force > stats.force) {
+          addMessage(`😡 ${npc.name} ne se laisse pas faire : "Tu vas regretter tes paroles !"`);
+          // Délai de 1s pour laisser le temps de lire avant que la modale de combat s'ouvre
+          setTimeout(() => {
+            setCombatNpc(npc);
+          }, 1000);
+        } else {
+          addMessage(`😒 ${npc.name} s'écrase et baisse les yeux.`);
+        }
+      }
   };
 
   const handleNpcClick = (npc) => {
-    if (npc.type === "fight") setCombatNpc(npc);
-    if (npc.type === "trade") setTradeNpc(npc);
+	// On stocke le PNJ pour afficher le menu de choix
+	setInteractingNpc(npc);
   };
 
   return React.createElement("div", { className: `min-h-screen p-4 max-w-5xl mx-auto space-y-4 ${isShakedown ? 'shakedown-active' : ''}` },
     
+
+{/* --- MENU D'INTERACTION PNJ --- */}
+interactingNpc && React.createElement("div", { 
+  className: "fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" 
+},
+  React.createElement("div", { 
+    className: "bg-gray-900 border-2 border-blue-600 p-6 rounded-xl max-w-sm w-full text-center shadow-[0_0_20px_rgba(37,99,235,0.3)]" 
+  },
+    // En-tête avec l'icône du PNJ si elle existe
+    React.createElement("div", { className: "text-4xl mb-2" }, interactingNpc.icon || "👤"),
+    React.createElement("h2", { className: "text-white font-black text-2xl mb-1 uppercase tracking-tighter" }, interactingNpc.name),
+    React.createElement("p", { className: "text-blue-400 text-[10px] font-bold mb-6 tracking-widest uppercase" }, "Interaction"),
+    React.createElement("div", { className: "grid grid-cols-1 gap-3" },
+    React.createElement("h2", { className: "text-white font-black text-2xl uppercase" }, interactingNpc.name),
+    React.createElement("p", { className: "text-pink-500 text-xs font-bold mb-4" }, `Relation : ${relations[interactingNpc.id] || 0} pts`),
+      
+      // --- ACTIONS SPÉCIFIQUES (Troc / Combat) ---
+      (interactingNpc.type === "trade" || interactingNpc.type === "hybrid") && 
+        React.createElement("button", { 
+          onClick: () => { setTradeNpc(interactingNpc); setInteractingNpc(null); },
+          className: "py-3 bg-gradient-to-r from-yellow-700 to-yellow-600 text-white font-black rounded-lg hover:from-yellow-600 hover:to-yellow-500 transition-all shadow-lg"
+        }, "🛒 TROQUER"),
+      
+      (interactingNpc.type === "fight" || interactingNpc.type === "hybrid") && 
+        React.createElement("button", { 
+          onClick: () => { setCombatNpc(interactingNpc); setInteractingNpc(null); },
+          className: "py-3 bg-gradient-to-r from-red-700 to-red-600 text-white font-black rounded-lg hover:from-red-600 hover:to-red-500 transition-all shadow-lg"
+        }, "💀 COMBATTRE"),
+
+      // --- ACTIONS SOCIALES (Appellent handleAction) ---
+      React.createElement("button", { 
+        onClick: () => { handleAction({ type: 'social', subType: 'talk', npc: interactingNpc }); setInteractingNpc(null); },
+        className: "py-3 bg-gray-800 text-blue-300 font-bold rounded-lg border border-blue-900/50 hover:bg-gray-700 transition-colors"
+      }, "🗣️ PARLER"),
+
+      React.createElement("button", { 
+        onClick: () => { handleAction({ type: 'social', subType: 'charm', npc: interactingNpc }); setInteractingNpc(null); },
+        className: "py-3 bg-gray-800 text-pink-300 font-bold rounded-lg border border-pink-900/50 hover:bg-gray-700 transition-colors"
+      }, "✨ CHARMER"),
+
+      React.createElement("button", { 
+        onClick: () => { handleAction({ type: 'social', subType: 'humiliate', npc: interactingNpc }); setInteractingNpc(null); },
+        className: "py-3 bg-gray-800 text-orange-300 font-bold rounded-lg border border-orange-900/50 hover:bg-gray-700 transition-colors"
+      }, "🔥 HUMILIER"),
+      
+      // Bouton Fermer
+      React.createElement("button", { 
+        onClick: () => setInteractingNpc(null), 
+        className: "mt-4 py-2 text-gray-500 text-[10px] uppercase font-bold tracking-widest hover:text-white transition-colors" 
+      }, "[ Annuler ]")
+    )
+  )
+)}
+
     // MODALES
     combatNpc && React.createElement(CombatModal, { 
       npc: combatNpc, stats, inventory,
@@ -187,7 +305,7 @@ function Game({ startingBonus }) {
     }),
 
     // HUD (8 colonnes pour inclure le MORAL)
-    React.createElement("div", { className: "grid grid-cols-4 md:grid-cols-8 gap-2 bg-gray-900 p-4 rounded-xl border border-blue-900 shadow-xl text-white" },
+      React.createElement("div", { className: "grid grid-cols-4 md:grid-cols-8 gap-2 bg-gray-900 p-4 rounded-xl border border-blue-900 shadow-xl text-white" },
       React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-green-400 font-bold" }, "⚡ ÉNERGIE"), React.createElement("p", { className: "text-xl font-black" }, energy + "%")),
       React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-yellow-500 font-bold" }, "🔥 REPUTATION"), React.createElement("p", { className: "text-xl font-black" }, stats.reputation)),
       React.createElement("div", null, React.createElement("p", { className: "text-[10px] text-red-500 font-bold" }, "💪 FORCE"), React.createElement("p", { className: "text-xl font-black" }, stats.force)),
