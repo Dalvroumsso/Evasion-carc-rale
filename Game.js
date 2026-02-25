@@ -229,19 +229,20 @@ const handleAction = (action) => {
     
 
 {/* --- MENU D'INTERACTION PNJ --- */}
-interactingNpc && React.createElement("div", { 
+{interactingNpc && React.createElement("div", { 
   className: "fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" 
 },
   React.createElement("div", { 
     className: "bg-gray-900 border-2 border-blue-600 p-6 rounded-xl max-w-sm w-full text-center shadow-[0_0_20px_rgba(37,99,235,0.3)]" 
   },
-    // En-tête avec l'icône du PNJ si elle existe
+    // Icône
     React.createElement("div", { className: "text-4xl mb-2" }, interactingNpc.icon || "👤"),
+    
+    // Titre et Relation
     React.createElement("h2", { className: "text-white font-black text-2xl mb-1 uppercase tracking-tighter" }, interactingNpc.name),
-    React.createElement("p", { className: "text-blue-400 text-[10px] font-bold mb-6 tracking-widest uppercase" }, "Interaction"),
+    React.createElement("p", { className: "text-pink-500 text-xs font-bold mb-6" }, `Relation : ${relations[interactingNpc.id] || 0} pts`),
+    
     React.createElement("div", { className: "grid grid-cols-1 gap-3" },
-    React.createElement("h2", { className: "text-white font-black text-2xl uppercase" }, interactingNpc.name),
-    React.createElement("p", { className: "text-pink-500 text-xs font-bold mb-4" }, `Relation : ${relations[interactingNpc.id] || 0} pts`),
       
       // --- ACTIONS SPÉCIFIQUES (Troc / Combat) ---
       (interactingNpc.type === "trade" || interactingNpc.type === "hybrid") && 
@@ -256,30 +257,30 @@ interactingNpc && React.createElement("div", {
           className: "py-3 bg-gradient-to-r from-red-700 to-red-600 text-white font-black rounded-lg hover:from-red-600 hover:to-red-500 transition-all shadow-lg"
         }, "💀 COMBATTRE"),
 
-      // --- ACTIONS SOCIALES (Appellent handleAction) ---
+      // --- ACTIONS SOCIALES ---
       React.createElement("button", { 
         onClick: () => { handleAction({ type: 'social', subType: 'talk', npc: interactingNpc }); setInteractingNpc(null); },
-        className: "py-3 bg-gray-800 text-blue-300 font-bold rounded-lg border border-blue-900/50 hover:bg-gray-700 transition-colors"
+        className: "py-3 bg-gray-800 text-blue-300 font-bold rounded-lg border border-blue-900/50 hover:bg-gray-700"
       }, "🗣️ PARLER"),
 
       React.createElement("button", { 
         onClick: () => { handleAction({ type: 'social', subType: 'charm', npc: interactingNpc }); setInteractingNpc(null); },
-        className: "py-3 bg-gray-800 text-pink-300 font-bold rounded-lg border border-pink-900/50 hover:bg-gray-700 transition-colors"
+        className: "py-3 bg-gray-800 text-pink-300 font-bold rounded-lg border border-pink-900/50 hover:bg-gray-700"
       }, "✨ CHARMER"),
 
       React.createElement("button", { 
         onClick: () => { handleAction({ type: 'social', subType: 'humiliate', npc: interactingNpc }); setInteractingNpc(null); },
-        className: "py-3 bg-gray-800 text-orange-300 font-bold rounded-lg border border-orange-900/50 hover:bg-gray-700 transition-colors"
+        className: "py-3 bg-gray-800 text-orange-300 font-bold rounded-lg border border-orange-900/50 hover:bg-gray-700"
       }, "🔥 HUMILIER"),
       
       // Bouton Fermer
       React.createElement("button", { 
         onClick: () => setInteractingNpc(null), 
-        className: "mt-4 py-2 text-gray-500 text-[10px] uppercase font-bold tracking-widest hover:text-white transition-colors" 
+        className: "mt-4 py-2 text-gray-500 text-[10px] uppercase font-bold tracking-widest hover:text-white" 
       }, "[ Annuler ]")
     )
   )
-)}
+)},
 
     // MODALES
     combatNpc && React.createElement(CombatModal, { 
@@ -345,3 +346,4 @@ interactingNpc && React.createElement("div", {
     )
   );
 }
+
