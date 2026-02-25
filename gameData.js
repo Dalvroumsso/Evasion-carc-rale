@@ -182,7 +182,7 @@ const WORLD_DATA = {
       { id: "vieux", name: "Le Vieux", x: "30%", y: "50%", type: "trade", inventory: ["livre_adulte", "savon"], dialog: "Le savoir, c'est la seule liberté." }
     ],
     infirmary : [
-	{id: "Jocelyn",name:"Jocelyn",x: "30%", y: "50%", type: "charm", ."}
+	{id: "Jocelyn",name:"Jocelyn",x: "30%", y: "50%", type: "charm"}
     ],
     office:[
 	{}
@@ -198,3 +198,4 @@ const WORLD_DATA = {
     ],
   }
 };
+
