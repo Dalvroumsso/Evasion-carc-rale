@@ -6,7 +6,6 @@
     <title>Blackridge: Prison Riot</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
-
     <link rel="stylesheet" href="style.css">
 
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -14,7 +13,6 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
-        /* Un petit fix pour s'assurer que le fond occupe tout l'écran */
         body {
             background-color: #0a0a0c;
             min-height: 100vh;
@@ -22,20 +20,22 @@
     </style>
 </head>
 <body>
-
     <div id="root"></div>
 
+    <!-- Données (vanilla JS, pas de Babel) -->
     <script src="gameData.js"></script>
     <script src="introData.js"></script>
 
+    <!-- Composants React (Babel) -->
     <script type="text/babel" src="StartScreen.js"></script>
     <script type="text/babel" src="IntroScene.js"></script>
     <script type="text/babel" src="RoomGraphics.js"></script>
     <script type="text/babel" src="RoomView.js"></script>
     <script type="text/babel" src="CombatModal.js"></script>
     <script type="text/babel" src="TradeModal.js"></script>
+    <script type="text/babel" src="EventModal.js"></script>
+    <script type="text/babel" src="QuestLog.js"></script>
     <script type="text/babel" src="Game.js"></script>
     <script type="text/babel" src="main.js"></script>
-
 </body>
 </html>
