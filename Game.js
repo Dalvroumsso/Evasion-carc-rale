@@ -1,709 +1,833 @@
 // ============================================================
-//  BLACKRIDGE - GAME DATA  v2.0
+//  Game.js  — Logique principale du jeu v2.0
 // ============================================================
+function Game({ startingBonus }) {
 
-const GAME_SETTINGS = {
-  STATS: { MIN: 0, MAX: 100, STARTING_ENERGY: 100, STARTING_MORAL: 50 },
-  ECONOMY: { BUY_DIVIDER: 5, SELL_DIVIDER: 10 },
-  COMBAT: {
-    BASE_HP: 20,
-    BASE_DAMAGE: 3,           // Réduit (était 5)
-    SPAWN_SPEED_BASE: 1400,   // Plus lent (était 1200)
-    SPAWN_SPEED_MIN: 600,     // Plus lent (était 400)
-    TARGET_TIMEOUT: 900,
-    REPUTATION_WIN: 15,
-    REPUTATION_LOSS: 5,
-    PRISON_RISK: 0.4
-  },
-  TIME: { TICK_SPEED: 10, DAY_START: 480, DAY_END: 1440 },
-  PROGRESSION: {
-    TRAIN_GAIN: 1,            // Réduit (était 3) — progression lente
-    STAT_CAP_PER_DAY: 3,      // Maximum de gains par stat par journée
-    COOLDOWN_TRAIN_MINUTES: 60, // Temps minimum entre deux entraînements du même type
-    RANDOM_EVENT_INTERVAL: 8  // Une chance d'événement toutes les X actions
-  }
-};
+  // ─── ÉTAT DU MONDE ──────────────────────────────────────
+  const [currentRoom, setCurrentRoom]         = React.useState("entrance");
+  const [inventory,   setInventory]           = React.useState(["brossette", "savon"]);
+  const [messages,    setMessages]            = React.useState([{ text: "Bienvenue à Blackridge. Bonne chance.", id: Date.now() }]);
+  const [isShakedown, setIsShakedown]         = React.useState(false);
 
-// ============================================================
-//  BASE D'OBJETS
-// ============================================================
-const ITEMS_DB = {
-  "brossette":    { name: "Brossette",          icon: "🪥", illegal: false, value: 0 },
-  "savon":        { name: "Savon",               icon: "🧼", illegal: false, value: 1 },
-  "cigarettes":   { name: "Cigarettes",          icon: "🚬", illegal: true,  value: 5 },
-  "livre_adulte": { name: "Livre Adulte",        icon: "🔞", illegal: true,  value: 10 },
-  "shivan":       { name: "Shivan (Couteau)",    icon: "🔪", illegal: true,  value: 15 },
-  "dopant":       { name: "Dopant",              icon: "🧪", illegal: true,  value: 8 },
-  "corde":        { name: "Bout de corde",       icon: "🪢", illegal: true,  value: 3 },
-  "savon_corde":  { name: "Savon de combat",     icon: "🧼🪢", illegal: true, value: 12 },
-  "lettre":       { name: "Lettre codée",        icon: "✉️", illegal: false, value: 2 },
-  "plan_prison":  { name: "Plan de la prison",   icon: "🗺️", illegal: true,  value: 20 },
-  "sedatif":      { name: "Sédatif",             icon: "💊", illegal: true,  value: 12 },
-  "clef_usee":    { name: "Clef usée",           icon: "🗝️", illegal: true,  value: 8 },
-  "radio_cassee": { name: "Radio cassée",        icon: "📻", illegal: false, value: 1 },
-  "photo_famille":{ name: "Photo de famille",    icon: "🖼️", illegal: false, value: 0 },
-};
+  // Temps, énergie, stats
+  const [energy, setEnergy]   = React.useState(100);
+  const [time,   setTime]     = React.useState(480);
+  const [stats,  setStats]    = React.useState({
+    force:        startingBonus.force       || 0,
+    reputation:   startingBonus.reputation  || 0,
+    intelligence: startingBonus.intelligence|| 0,
+    resistance:   startingBonus.resistance  || 0,
+    agilite:      startingBonus.agilite     || 0,
+    moral:        startingBonus.moral       || 50
+  });
 
-// ============================================================
-//  BASE DES PNJ (enrichie)
-//  Chaque PNJ a : backstory, faction, seuils de confiance,
-//  dialogues évolutifs, quête associée, capacité spéciale
-// ============================================================
-const NPCS_DB = {
+  // Faction & Faction choisie
+  const [playerFaction, setPlayerFaction] = React.useState("neutre");
 
-  "garde_corridor": {
-    id: "garde_corridor",
-    name: "Gardien Jones",
-    icon: "👮",
-    type: "fight",
-    faction: "guards",
-    force: 40,
-    personnality: "aggressive",
-    backstory: "Jones est à Blackridge depuis 18 ans. Il a tout vu, perdu la moitié de ses illusions et compense par la brutalité.",
-    trustLevels: {
-      "-50": "Il te surveille de près. Un faux pas et tu goes au trou.",
-      "0":   "Jones te traite comme du bétail ordinaire.",
-      "20":  "Jones te laisse passer sans fouille systématique.",
-      "50":  "Jones t'a à la bonne. Il ferme les yeux de temps en temps."
-    },
-    dialogs: [
-      "Circule, gamin.",
-      "J'ai l'œil sur toi.",
-      "T'as un problème ?",
-      "Ma patience a des limites."
-    ],
-    specialUnlock: { trust: 50, action: "bribe_guard", label: "🤝 Corrompre" },
-    questGiver: null
-  },
+  // Cooldowns entraînement : { cooldownKey: lastTrainTime }
+  const [trainCooldowns, setTrainCooldowns] = React.useState({});
 
-  "dealer": {
-    id: "dealer",
-    name: "Le Dealer",
-    icon: "🧪",
-    type: "trade",
-    faction: "neutre",
-    force: 15,
-    personnality: "coward",
-    inventory: ["dopant", "savon", "sedatif"],
-    backstory: "Ancien chimiste reconverti. Il ne sait plus vraiment pourquoi il est là, mais il sait que tout le monde a besoin de lui.",
-    trustLevels: {
-      "0":  "Il te regarde avec méfiance.",
-      "15": "Il baisse ses prix de 10% pour toi.",
-      "40": "Il te propose des produits exclusifs.",
-    },
-    dialogs: [
-      "Besoin d'un remède pour tenir le coup ?",
-      "J'ai ce qu'il faut pour les longues nuits.",
-      "Rien n'est gratuit ici, mais t'as l'air futé.",
-      "Le dopant, c'est pour les faibles... ou les malins."
-    ],
-    specialUnlock: { trust: 40, action: "buy_plan", label: "🗺️ Acheter un plan" },
-    questGiver: "quest_dealer_supply"
-  },
+  // Relations PNJ : { npcId: trustPoints }
+  const [relations, setRelations] = React.useState({});
 
-  "brute": {
-    id: "brute",
-    name: "La Brute",
-    icon: "👺",
-    type: "hybrid",
-    faction: "muscles",
-    force: 55,
-    personnality: "aggressive",
-    backstory: "Marcus 'La Brute' Diaz. Triple champion de boxe amateur avant de tout perdre en une nuit de violence. Maintenant il protège son territoire par instinct.",
-    trustLevels: {
-      "-20": "Il t'a dans le viseur. Fait gaffe.",
-      "0":   "Il t'ignore. Pour l'instant.",
-      "30":  "Il te respecte. Un signe de tête dans la cour.",
-      "60":  "Allié potentiel. Il couvre tes arrières."
-    },
-    dialogs: [
-      "T'as quelque chose à dire ou tu viens juste perdre du temps ?",
-      "Ici c'est mon territoire.",
-      "T'as du cran, je te donne ça.",
-      "Prouve ta valeur avant de me parler."
-    ],
-    specialUnlock: { trust: 60, action: "recruit_ally", label: "🤜 Recruter comme allié" },
-    questGiver: "quest_brute_challenge",
-    inventory: ["savon_corde"],
-    charm_threshold: 80
-  },
+  // ─── SYSTÈME DE QUÊTES ──────────────────────────────────
+  // Initialisation : quête de départ déverrouillée
+  const initQuests = () => {
+    const q = QUESTS_DB["quest_survive"];
+    return [{
+      id: "quest_survive",
+      status: "active",
+      objectives: q.objectives.map(o => ({ ...o }))
+    }];
+  };
+  const [quests, setQuests] = React.useState(initQuests);
+  const [showQuestLog, setShowQuestLog] = React.useState(false);
+  const [questNotif, setQuestNotif]   = React.useState(null); // { title, message }
 
-  "rat": {
-    id: "rat",
-    name: "Le Rat",
-    icon: "🐀",
-    type: "hybrid",
-    faction: "neutre",
-    force: 12,
-    personnality: "scheming",
-    inventory: ["shivan", "cigarettes", "corde", "lettre"],
-    backstory: "Personne ne connaît son vrai nom. Il vend des informations et des objets. Son réseau s'étend jusqu'aux gardiens. Dangereux à contrarier.",
-    trustLevels: {
-      "0":  "Il te jauge. Il voit si tu peux lui servir.",
-      "20": "Il partage des rumeurs gratuitement.",
-      "45": "Il te montre comment éviter les patrouilles.",
-      "70": "Il partage les secrets de la prison avec toi."
-    },
-    dialogs: [
-      "Rien n'est gratuit ici...",
-      "J'ai des oreilles partout, tu sais.",
-      "Je peux t'aider. Mais t'as quelque chose pour moi ?",
-      "Le savoir, c'est la vraie monnaie de Blackridge."
-    ],
-    specialUnlock: { trust: 70, action: "get_plan", label: "🗺️ Plan de la prison" },
-    questGiver: "quest_rat_network"
-  },
+  // ─── MODALES ────────────────────────────────────────────
+  const [interactingNpc, setInteractingNpc] = React.useState(null);
+  const [combatNpc,      setCombatNpc]      = React.useState(null);
+  const [tradeNpc,       setTradeNpc]       = React.useState(null);
+  const [activeEvent,    setActiveEvent]    = React.useState(null);
 
-  "vieux": {
-    id: "vieux",
-    name: "Le Vieux",
-    icon: "👴",
-    type: "hybrid",
-    faction: "neutre",
-    force: 8,
-    personnality: "friendly",
-    inventory: ["livre_adulte", "savon", "radio_cassee"],
-    backstory: "Émile, 67 ans. 25 ans à Blackridge pour un meurtre qu'il dit ne pas avoir commis. Il a trouvé la paix dans les livres et observe tout avec une sagesse troublante.",
-    trustLevels: {
-      "0":  "Il te regarde comme tous les autres jeunes con qui passent.",
-      "15": "Il partage sa nourriture. Rare ici.",
-      "35": "Il t'apprend des choses. +INT accéléré.",
-      "60": "Il te confie quelque chose d'important."
-    },
-    dialogs: [
-      "Le savoir, c'est la seule liberté.",
-      "J'ai vu des centaines comme toi. La plupart sont partis les pieds devant.",
-      "Assieds-toi. Écoute. Ça t'évitera des erreurs.",
-      "La patience est la seule arme que les gardiens ne peuvent pas confisquer."
-    ],
-    specialUnlock: { trust: 60, action: "learn_secret", label: "📖 Secret de la prison" },
-    questGiver: "quest_vieux_wisdom"
-  },
+  // Compteur d'actions pour les événements aléatoires
+  const actionCounter = React.useRef(0);
 
-  "Jocelyn": {
-    id: "Jocelyn",
-    name: "Jocelyn",
-    icon: "👩‍⚕️",
-    type: "hybrid",
-    faction: "guards",
-    force: 5,
-    personnality: "friendly",
-    inventory: ["sedatif", "dopant"],
-    backstory: "Infirmière depuis 3 ans à Blackridge. Elle soigne tout le monde sans juger. Mais elle n'est pas naïve — elle connaît les règles du jeu.",
-    trustLevels: {
-      "0":  "Elle fait son travail, rien de plus.",
-      "20": "Elle soigne mieux quand tu es blessé. +HP bonus.",
-      "40": "Elle ferme les yeux sur certains objets médicaux.",
-      "65": "Elle est prête à t'aider à sortir... à un prix."
-    },
-    dialogs: [
-      "Encore toi ? C'est quoi cette fois ?",
-      "Je soigne, je ne juge pas. Mais je regarde.",
-      "Fais attention à toi. Ici les blessures s'infectent vite.",
-      "Il y a des façons de sortir d'ici sans se faire tuer."
-    ],
-    specialUnlock: { trust: 65, action: "escape_help", label: "🚪 Aide à l'évasion" },
-    questGiver: "quest_jocelyn_escape"
-  }
-};
+  // ─── UTILITAIRES ────────────────────────────────────────
+  const addMessage = (text) =>
+    setMessages(prev => [{ text, id: Date.now() + Math.random() }, ...prev].slice(0, 40));
 
-// ============================================================
-//  SYSTÈME DE QUÊTES
-// ============================================================
-const QUESTS_DB = {
+  const formatTime = (t) => {
+    const h = Math.floor((t % 1440) / 60);
+    const m = t % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+  };
 
-  // ─── ACTE 1 : SURVIVRE ───────────────────────────────────
+  const clamp = (v, min = 0, max = 100) => Math.max(min, Math.min(max, v));
 
-  "quest_survive": {
-    id: "quest_survive",
-    title: "Semaine de Survie",
-    act: 1,
-    type: "main",
-    icon: "🌅",
-    description: "Tu viens d'arriver. Mange, dors, ne meurs pas. Simple en théorie.",
-    objectives: [
-      { id: "sleep_3", type: "sleep",  count: 3, label: "Survivre 3 nuits",   progress: 0 },
-      { id: "eat_3",   type: "eat",    count: 3, label: "Manger 3 fois",       progress: 0 },
-      { id: "train_2", type: "train",  count: 2, label: "S'entraîner 2 fois",  progress: 0 }
-    ],
-    rewards: { reputation: 3, moral: 5, message: "Tu tiens encore debout. C'est déjà quelque chose." },
-    prerequisite: [],
-    unlocks: ["quest_meet_rat", "quest_vieux_wisdom"]
-  },
+  const modifyStat = (stat, delta) =>
+    setStats(s => ({ ...s, [stat]: clamp(s[stat] + delta) }));
 
-  "quest_meet_rat": {
-    id: "quest_meet_rat",
-    title: "Faire Connaissance",
-    act: 1,
-    type: "main",
-    icon: "🐀",
-    description: "Le Rat contrôle les informations et les objets dans ce bloc. Tu vas en avoir besoin.",
-    objectives: [
-      { id: "talk_rat_1",  type: "talk_npc",  target: "rat", count: 1, label: "Parler au Rat",              progress: 0 },
-      { id: "charm_rat_1", type: "charm_npc", target: "rat", count: 1, label: "Gagner sa confiance",         progress: 0 },
-      { id: "cigs_5",      type: "have_item", itemId: "cigarettes", count: 5, label: "Avoir 5 cigarettes",   progress: 0 }
-    ],
-    rewards: { intelligence: 2, items: ["cigarettes", "cigarettes"], message: "Le Rat t'a à la bonne. Pour l'instant." },
-    prerequisite: ["quest_survive"],
-    unlocks: ["quest_rat_network", "quest_obtain_weapon"]
-  },
+  const modifyTrust = (npcId, delta) =>
+    setRelations(prev => ({ ...prev, [npcId]: clamp((prev[npcId] || 0) + delta, -100, 100) }));
 
-  // ─── ACTE 1 : CÔTÉ ───────────────────────────────────────
+  // ─── SYSTÈME DE QUÊTES ──────────────────────────────────
 
-  "quest_vieux_wisdom": {
-    id: "quest_vieux_wisdom",
-    title: "Le Passeur de Sagesse",
-    act: 1,
-    type: "side",
-    icon: "📚",
-    description: "Le Vieux est à Blackridge depuis 25 ans. Il en sait plus qu'il ne le dit.",
-    objectives: [
-      { id: "talk_vieux_3", type: "talk_npc",  target: "vieux", count: 3,  label: "Parler au Vieux 3 fois", progress: 0 },
-      { id: "charm_vieux",  type: "charm_npc", target: "vieux", count: 1,  label: "Gagner sa confiance",     progress: 0 },
-      { id: "read_book",    type: "use_item",  itemId: "livre_adulte", count: 1, label: "Lire un livre",     progress: 0 }
-    ],
-    rewards: { intelligence: 4, moral: 8, message: "Le Vieux t'a appris quelque chose que personne d'autre ne peut t'enseigner." },
-    prerequisite: ["quest_survive"],
-    unlocks: ["quest_jocelyn_escape"]
-  },
+  // Met à jour la progression d'un objectif sur les quêtes actives
+  const progressQuest = (type, params = {}) => {
+    setQuests(prev => {
+      let updated = prev.map(q => {
+        if (q.status !== "active") return q;
+        const def = QUESTS_DB[q.id];
+        if (!def) return q;
 
-  // ─── ACTE 2 : S'IMPOSER ──────────────────────────────────
+        const newObjs = q.objectives.map(obj => {
+          if (obj.progress >= obj.count) return obj; // déjà terminé
 
-  "quest_obtain_weapon": {
-    id: "quest_obtain_weapon",
-    title: "Se Défendre",
-    act: 2,
-    type: "main",
-    icon: "🔪",
-    description: "Sans arme, tu es une cible. Il te faut un shivan.",
-    objectives: [
-      { id: "get_shivan",  type: "have_item",    itemId: "shivan",     count: 1, label: "Avoir un shivan",              progress: 0 },
-      { id: "win_fight_1", type: "combat_win",   target: null,         count: 1, label: "Gagner un combat",             progress: 0 }
-    ],
-    rewards: { reputation: 8, message: "T'as prouvé que tu peux te défendre. Les regards ont changé." },
-    prerequisite: ["quest_meet_rat"],
-    unlocks: ["quest_brute_challenge"]
-  },
+          let match = false;
+          switch (type) {
+            case "sleep":          match = (obj.type === "sleep");                                 break;
+            case "eat":            match = (obj.type === "eat");                                   break;
+            case "train":          match = (obj.type === "train") && (!obj.stat || obj.stat === params.stat); break;
+            case "talk_npc":       match = (obj.type === "talk_npc")  && obj.target === params.npcId;        break;
+            case "charm_npc":      match = (obj.type === "charm_npc") && obj.target === params.npcId;        break;
+            case "combat_win":     match = (obj.type === "combat_win") && (!obj.target || obj.target === params.npcId); break;
+            case "humiliate":      match = (obj.type === "humiliate");                             break;
+            case "use_item":       match = (obj.type === "use_item")   && obj.itemId === params.itemId;       break;
+            case "have_item":      match = (obj.type === "have_item")  && obj.itemId === params.itemId && params.count >= obj.count; break;
+            case "stat_reach":     match = (obj.type === "stat_reach") && obj.stat === params.stat && params.value >= obj.value;     break;
+            case "join_faction":   match = (obj.type === "join_faction");                          break;
+            case "action":         match = (obj.type === "action") && obj.actionType === params.actionType;  break;
+            default: break;
+          }
 
-  "quest_rat_network": {
-    id: "quest_rat_network",
-    title: "Le Réseau",
-    act: 2,
-    type: "side",
-    icon: "🕸️",
-    description: "Le Rat peut te donner les horaires des patrouilles. Mais il veut quelque chose en échange.",
-    objectives: [
-      { id: "give_rat_cigs",  type: "talk_npc",  target: "rat",         count: 3, label: "Parler au Rat 3 fois",           progress: 0 },
-      { id: "rep_20",         type: "stat_reach", stat: "reputation",   value: 20, label: "Atteindre 20 de Réputation",    progress: 0 }
-    ],
-    rewards: { intelligence: 3, unlockInfo: "patrol_schedule", message: "Le Rat te file les horaires des gardes. Les nuits sont moins risquées." },
-    prerequisite: ["quest_meet_rat"],
-    unlocks: ["quest_big_escape"]
-  },
+          if (match) return { ...obj, progress: Math.min(obj.count, obj.progress + 1) };
+          return obj;
+        });
 
-  // ─── ACTE 2 : CONFRONTATION ──────────────────────────────
+        return { ...q, objectives: newObjs };
+      });
 
-  "quest_brute_challenge": {
-    id: "quest_brute_challenge",
-    title: "Le Baptême du Feu",
-    act: 2,
-    type: "main",
-    icon: "👊",
-    description: "La Brute domine la cour depuis 3 ans. Bats-la en public et tu deviens quelqu'un.",
-    objectives: [
-      { id: "force_15",     type: "stat_reach",  stat: "force",    value: 15, label: "Atteindre 15 de Force",      progress: 0 },
-      { id: "beat_brute",   type: "combat_win",  target: "brute",  count: 1,  label: "Battre La Brute",            progress: 0 }
-    ],
-    rewards: { reputation: 20, force: 2, message: "La cour entière a vu. Ton nom circule maintenant." },
-    prerequisite: ["quest_obtain_weapon"],
-    unlocks: ["quest_gang_choice", "quest_intimidation"]
-  },
+      // Vérifier si des quêtes sont complétées
+      let newlyCompleted = [];
+      let toUnlock = [];
 
-  // ─── ACTE 2 : CÔTÉ ───────────────────────────────────────
+      updated = updated.map(q => {
+        if (q.status !== "active") return q;
+        const def = QUESTS_DB[q.id];
+        const allDone = q.objectives.every(o => o.progress >= o.count);
+        if (allDone) {
+          newlyCompleted.push(q.id);
+          if (def && def.unlocks) toUnlock = [...toUnlock, ...def.unlocks];
+          return { ...q, status: "completed" };
+        }
+        return q;
+      });
 
-  "quest_intimidation": {
-    id: "quest_intimidation",
-    title: "Faire Régner la Terreur",
-    act: 2,
-    type: "side",
-    icon: "🔥",
-    description: "La peur est une forme de respect. Humilie 3 prisonniers.",
-    objectives: [
-      { id: "humiliate_3", type: "humiliate", count: 3, label: "Humilier 3 prisonniers", progress: 0 }
-    ],
-    rewards: { reputation: 12, moral: -10, message: "Tout le monde baisse les yeux quand tu passes. Mais t'as perdu quelque chose en chemin." },
-    prerequisite: ["quest_brute_challenge"],
-    unlocks: []
-  },
+      // Ajouter les nouvelles quêtes déverrouillées (si pas déjà présentes)
+      const existingIds = updated.map(q => q.id);
+      toUnlock.forEach(qId => {
+        if (!existingIds.includes(qId) && QUESTS_DB[qId]) {
+          updated.push({
+            id: qId,
+            status: "active",
+            objectives: QUESTS_DB[qId].objectives.map(o => ({ ...o }))
+          });
+        }
+      });
 
-  "quest_jocelyn_escape": {
-    id: "quest_jocelyn_escape",
-    title: "La Confidente",
-    act: 2,
-    type: "side",
-    icon: "💉",
-    description: "Jocelyn sait des choses sur la prison. Elle pourrait t'aider. Gagne sa confiance.",
-    objectives: [
-      { id: "talk_jocelyn_3", type: "talk_npc",  target: "Jocelyn", count: 3, label: "Parler à Jocelyn 3 fois",       progress: 0 },
-      { id: "charm_jocelyn",  type: "charm_npc", target: "Jocelyn", count: 1, label: "Charmer Jocelyn",               progress: 0 },
-      { id: "moral_40",       type: "stat_reach", stat: "moral",    value: 40, label: "Maintenir un moral > 40",      progress: 0 }
-    ],
-    rewards: { items: ["sedatif"], unlockInfo: "jocelyn_help", message: "Jocelyn t'a remis quelque chose. 'Pour le bon moment', dit-elle." },
-    prerequisite: ["quest_vieux_wisdom"],
-    unlocks: ["quest_big_escape"]
-  },
+      // Notifications + récompenses pour les quêtes terminées
+      newlyCompleted.forEach(qId => {
+        const def = QUESTS_DB[qId];
+        if (!def) return;
+        setTimeout(() => {
+          setQuestNotif({ title: def.title, icon: def.icon, message: def.rewards?.message || "Quête terminée !" });
+          if (def.rewards) {
+            if (def.rewards.reputation)   modifyStat("reputation",   def.rewards.reputation);
+            if (def.rewards.force)        modifyStat("force",        def.rewards.force);
+            if (def.rewards.intelligence) modifyStat("intelligence", def.rewards.intelligence);
+            if (def.rewards.moral)        modifyStat("moral",        def.rewards.moral);
+            if (def.rewards.items) {
+              setInventory(prev => [...prev, ...def.rewards.items]);
+            }
+          }
+          addMessage(`✅ QUÊTE TERMINÉE : "${def.title}" — ${def.rewards?.message || ""}`);
+        }, 300);
+      });
 
-  // ─── ACTE 3 : LA GRANDE SORTIE ───────────────────────────
+      return updated;
+    });
+  };
 
-  "quest_gang_choice": {
-    id: "quest_gang_choice",
-    title: "Choisir son Camp",
-    act: 3,
-    type: "main",
-    icon: "⚔️",
-    description: "Trois factions te sollicitent. Ce choix va définir la suite de ton séjour.",
-    objectives: [
-      { id: "rep_35",       type: "stat_reach",  stat: "reputation", value: 35, label: "Avoir 35 de Réputation",  progress: 0 },
-      { id: "join_faction", type: "join_faction", count: 1,           label: "Rejoindre une faction",             progress: 0 }
-    ],
-    rewards: { reputation: 10, message: "Tu appartiens à quelque chose maintenant. Pour le meilleur et le pire." },
-    prerequisite: ["quest_brute_challenge"],
-    unlocks: ["quest_big_escape"]
-  },
+  // Vérification automatique des objectifs de stat/possession
+  React.useEffect(() => {
+    Object.keys(stats).forEach(stat => {
+      progressQuest("stat_reach", { stat, value: stats[stat] });
+    });
+  }, [stats]);
 
-  "quest_big_escape": {
-    id: "quest_big_escape",
-    title: "La Grande Évasion",
-    act: 3,
-    type: "main",
-    icon: "🚪",
-    description: "C'est maintenant ou jamais. Rassemble ce qu'il faut. Une seule chance.",
-    objectives: [
-      { id: "have_corde",    type: "have_item",   itemId: "corde",       count: 1,  label: "Avoir une corde",            progress: 0 },
-      { id: "hack_cams",     type: "action",      actionType: "hack",    count: 1,  label: "Désactiver les caméras",     progress: 0 },
-      { id: "rep_50",        type: "stat_reach",  stat: "reputation",    value: 50, label: "50 de Réputation",           progress: 0 },
-      { id: "have_plan",     type: "have_item",   itemId: "plan_prison", count: 1,  label: "Avoir le plan de la prison", progress: 0 }
-    ],
-    rewards: { ending: "escape", message: "Tout est en place. L'heure venue, tu sauras quoi faire." },
-    prerequisite: ["quest_gang_choice", "quest_rat_network"],
-    unlocks: []
-  }
-};
+  React.useEffect(() => {
+    const cigCount = inventory.filter(i => i === "cigarettes").length;
+    if (cigCount > 0) progressQuest("have_item", { itemId: "cigarettes", count: cigCount });
+    ["shivan","corde","plan_prison","dopant","sedatif","livre_adulte"].forEach(id => {
+      if (inventory.includes(id)) progressQuest("have_item", { itemId: id, count: 1 });
+    });
+  }, [inventory]);
 
-// ============================================================
-//  ÉVÉNEMENTS ALÉATOIRES
-// ============================================================
-const RANDOM_EVENTS = [
+  // ─── ÉVÉNEMENTS ALÉATOIRES ──────────────────────────────
+  const tryTriggerRandomEvent = (room) => {
+    actionCounter.current += 1;
+    const cfg = GAME_SETTINGS.PROGRESSION;
+    if (actionCounter.current % cfg.RANDOM_EVENT_INTERVAL !== 0) return;
 
-  {
-    id: "ev_fight_witness",
-    weight: 15,
-    rooms: ["corridor", "yard", "canteen"],
-    title: "Bagarre dans le couloir",
-    description: "Deux détenus s'affrontent violemment devant toi. Le grand frappe le petit au sol. Qu'est-ce que tu fais ?",
-    choices: [
-      { text: "Intervenir (Force requis : 10)", condition: { stat: "force", min: 10 },
-        effect: { reputation: +5, moral: +5, message: "Tu les sépares. Le plus petit t'adresse un signe de tête reconnaissant." } },
-      { text: "Filmer mentalement les techniques",
-        effect: { force: 1, message: "Tu observes et tu retiens. +1 Force." } },
-      { text: "Dégager tranquillement",
-        effect: { moral: -3, message: "Tu passes ton chemin. C'est pas tes oignons." } }
-    ]
-  },
+    const pool = RANDOM_EVENTS.filter(ev =>
+      !ev.rooms || ev.rooms.includes(room)
+    );
+    if (pool.length === 0) return;
 
-  {
-    id: "ev_found_item",
-    weight: 20,
-    rooms: ["corridor", "cell", "yard", "showers"],
-    title: "Trouvaille inattendue",
-    description: "Tu trouves quelque chose planqué sous une brique descellée. Quelqu'un l'a laissé là.",
-    choices: [
-      { text: "Prendre l'objet",
-        effect: { item: "cigarettes", message: "Tu récupères les cigarettes. Finders keepers." } },
-      { text: "Le signaler au Rat (Confiance +5)",
-        effect: { npcTrust: { id: "rat", value: 8 }, message: "Le Rat apprécie l'info. Sa confiance en toi monte." } },
-      { text: "Laisser en place — trop risqué",
-        effect: { moral: 2, message: "Tu laisses tomber. Mieux vaut ne pas s'impliquer." } }
-    ]
-  },
-
-  {
-    id: "ev_guard_pressure",
-    weight: 12,
-    rooms: ["corridor", "yard"],
-    title: "Pression du gardien",
-    description: "Jones te coince dans un couloir vide. 'T'as des cigarettes sur toi ?' Il tend la main.",
-    choices: [
-      { text: "Lui donner 2 cigarettes",
-        effect: { removeItem: "cigarettes", count: 2, npcTrust: { id: "garde_corridor", value: 10 }, message: "Il empoche en silence. 'Bonne journée.' Il partira plus tôt que prévu." } },
-      { text: "Refuser (Réputation requis : 25)", condition: { stat: "reputation", min: 25 },
-        effect: { reputation: 3, npcTrust: { id: "garde_corridor", value: -5 }, message: "Il recule. T'as du cran. Mais il s'en souvient." } },
-      { text: "Chercher une excuse",
-        effect: { intelligence: 1, message: "Tu t'en tires avec une histoire bancale. Il n'est pas convaincu, mais il s'éloigne." } }
-    ]
-  },
-
-  {
-    id: "ev_newcomer",
-    weight: 10,
-    rooms: ["cell", "corridor"],
-    title: "Le Nouveau",
-    description: "Un nouveau débarque dans ton bloc. Il a l'air perdu et apeuré — comme toi à l'arrivée.",
-    choices: [
-      { text: "L'aider à s'orienter",
-        effect: { moral: 8, reputation: 2, message: "Il sera ton obligé. Le moral remonte. On n'oublie pas les gens qui nous ont aidés en entrant." } },
-      { text: "Lui extorquer ses affaires",
-        effect: { item: "cigarettes", moral: -8, reputation: 3, message: "Tu prends ses maigres affaires. Il pleure. T'as deux clopes de plus et un goût amer." } },
-      { text: "L'ignorer",
-        effect: { message: "Tu passes devant lui sans le regarder. Il apprendra tout seul." } }
-    ]
-  },
-
-  {
-    id: "ev_night_sound",
-    weight: 8,
-    rooms: ["cell"],
-    title: "Bruit dans la nuit",
-    description: "Au milieu de la nuit, tu entends des pas furtifs dans le couloir. Quelqu'un de planqué.",
-    choices: [
-      { text: "Observer discrètement (Agilité requis : 8)", condition: { stat: "agilite", min: 8 },
-        effect: { intelligence: 2, message: "Tu vois Le Rat transporter un sac. Il ne t'a pas vu. Information précieuse." } },
-      { text: "Faire semblant de dormir",
-        effect: { message: "Prudence. Tu mémorises l'heure : 02h30." } },
-      { text: "Interpeller la personne",
-        effect: { reputation: -3, message: "Elle s'enfuit. Tu t'es peut-être fait un ennemi pour rien." } }
-    ]
-  },
-
-  {
-    id: "ev_contraband_offer",
-    weight: 12,
-    rooms: ["showers", "yard", "canteen"],
-    title: "Offre suspecte",
-    description: "Un détenu inconnu s'approche et te propose discrètement un objet illégal à prix cassé. C'est peut-être un test des gardiens.",
-    choices: [
-      { text: "Acheter (5 cigarettes)", condition: { item: "cigarettes", count: 5 },
-        effect: { item: "shivan", removeItem: "cigarettes", removeCount: 5, risk: 0.35, message: "Tu prends le risque. 35% de chances que ce soit un piège." } },
-      { text: "Décliner prudemment",
-        effect: { intelligence: 1, message: "Bonne intuition. On ne sait jamais avec les nouveaux." } },
-      { text: "Dénoncer au Rat (Confiance +5)",
-        effect: { npcTrust: { id: "rat", value: 6 }, message: "Le Rat apprécie l'info. 'Ce type travaille pour Jones. T'as bien fait.'" } }
-    ]
-  },
-
-  {
-    id: "ev_bet",
-    weight: 10,
-    rooms: ["yard", "common"],
-    title: "Pari de cour",
-    description: "Un groupe de détenus organise un pari sur le prochain combat. Quelqu'un mise sur toi.",
-    choices: [
-      { text: "Accepter de te battre",
-        effect: { triggerCombat: true, reputationBonus: 10, message: "Tu acceptes. Tout le monde regarde." } },
-      { text: "Parier 3 cigarettes sur toi-même", condition: { item: "cigarettes", count: 3 },
-        effect: { removeItem: "cigarettes", removeCount: 3, itemGain: "cigarettes", itemGainCount: 8, message: "Le pari est conclu. Tu as gagné 8 cigarettes." } },
-      { text: "Refuser — pas de spectacle",
-        effect: { reputation: -2, message: "La foule est déçue. '-2 Rép. Certains t'appellent 'froussard'." } }
-    ]
-  },
-
-  {
-    id: "ev_letter",
-    weight: 8,
-    rooms: ["cell"],
-    title: "Lettre anonyme",
-    description: "Glissée sous ta porte. 'Ne fais pas confiance au Rat ce soir. Signé : un ami.' Pas de signature.",
-    choices: [
-      { text: "Garder la lettre et rester vigilant",
-        effect: { item: "lettre", intelligence: 1, message: "Tu gardes la lettre. Quelqu'un te surveille... pour le bien ?" } },
-      { text: "Montrer la lettre au Rat",
-        effect: { npcTrust: { id: "rat", value: -8 }, message: "Le Rat pâlit. 'Qui t'a donné ça ?' Sa confiance en toi chute légèrement." } },
-      { text: "Brûler la lettre",
-        effect: { moral: -2, message: "Tu brûles la lettre dans les toilettes. Moins de problèmes." } }
-    ]
-  },
-
-  {
-    id: "ev_solitary_hallucination",
-    weight: 20,
-    rooms: ["solitary"],
-    title: "Les murs parlent",
-    description: "Au trou depuis des heures, les pensées deviennent bruyantes. Une image de ta vie d'avant.",
-    choices: [
-      { text: "Te concentrer sur un objectif précis",
-        effect: { moral: 5, intelligence: 1, message: "La vision se dissipe. Tu sors avec une conviction." } },
-      { text: "Te laisser submerger",
-        effect: { moral: -10, resistance: 1, message: "Ça fait mal. Mais tu ressortiras plus dur." } }
-    ]
-  },
-
-  {
-    id: "ev_food_trade",
-    weight: 15,
-    rooms: ["canteen"],
-    title: "Échange de plateau",
-    description: "Un détenu t'offre d'échanger son plateau contre tes cigarettes. Son repas a l'air meilleur.",
-    choices: [
-      { text: "Accepter l'échange (1 cigarette)",
-        effect: { removeItem: "cigarettes", removeCount: 1, energy: +20, moral: 3, message: "Meilleure nourriture. +20 Énergie en bonus." } },
-      { text: "Refuser",
-        effect: { message: "Tu gardes tes cigarettes." } }
-    ]
-  },
-
-  {
-    id: "ev_guard_distracted",
-    weight: 8,
-    rooms: ["corridor"],
-    title: "Gardien distrait",
-    description: "Jones s'est endormi debout à son poste. Une occasion rare de fouiller son bureau proche.",
-    choices: [
-      { text: "Fouiller rapidement (Agilité requis : 12)", condition: { stat: "agilite", min: 12 },
-        effect: { item: "clef_usee", message: "Tu trouves une vieille clef. Jones ne s'est pas réveillé." } },
-      { text: "Photographier mentalement sa position",
-        effect: { intelligence: 1, message: "Information enregistrée." } },
-      { text: "Dégager sans risquer",
-        effect: { message: "Sage décision. Pas de risque, pas de récompense." } }
-    ]
-  }
-];
-
-// ============================================================
-//  WORLD DATA (Horaires, Gangs, Salles, PNJs par salle)
-// ============================================================
-const WORLD_DATA = {
-  schedule: {
-    yard:             { start: 480,  end: 1200, label: "08:00 - 20:00" },
-    canteen:          { start: 720,  end: 840,  label: "12:00 - 14:00" },
-    canteen_evening:  { start: 1080, end: 1200, label: "18:00 - 20:00" },
-    visiting:         { start: 840,  end: 1020, label: "14:00 - 17:00" }
-  },
-
-  gangs: {
-    neutre:   { name: "Solitaire",       color: "text-gray-400",   power: 0 },
-    ariens:   { name: "La Fraternité",   color: "text-red-500",    power: 10, boss: "brute",   joinStat: "force",        joinMin: 20 },
-    latinos:  { name: "Los Muertos",     color: "text-orange-500", power: 8,  boss: "rat",     joinStat: "intelligence", joinMin: 15 },
-    muscles:  { name: "Les Cogneurs",    color: "text-blue-500",   power: 12, boss: "brute",   joinStat: "resistance",   joinMin: 18 }
-  },
-
-  rooms: {
-    corridor: {
-      name: "Couloir Principal",
-      hotspots: [
-        { id: "toCell",      label: "Cellule",             action: { type: "move", leads_to: "cell" } },
-        { id: "toShowers",   label: "Douches",             action: { type: "move", leads_to: "showers" } },
-        { id: "toYard",      label: "Cour",                action: { type: "move", leads_to: "yard" } },
-        { id: "toCanteen",   label: "Cantine",             action: { type: "move", leads_to: "canteen" } },
-        { id: "toParlor",    label: "Parloir",             action: { type: "move", leads_to: "visiting_room" } },
-        { id: "toCommon",    label: "Salle commune",       action: { type: "move", leads_to: "common" } },
-        { id: "toEntrance",  label: "Entrée",              action: { type: "move", leads_to: "entrance" } },
-        { id: "toInfirmary", label: "Infirmerie",          action: { type: "move", leads_to: "infirmary" } },
-        { id: "toOffice",    label: "Bureau dir.",         action: { type: "move", leads_to: "office" } },
-        { id: "toSecurity",  label: "Salle caméras",       action: { type: "move", leads_to: "security" } }
-      ]
-    },
-    cell: {
-      name: "Votre Cellule",
-      hotspots: [
-        { id: "toCorridor", label: "Sortir",              action: { type: "move", leads_to: "corridor" } },
-        { id: "pushups",    label: "Pompes (Force)",      action: { type: "train", stat: "force",      energy: 30, cooldownKey: "force" } },
-        { id: "situps",     label: "Abdos (Résistance)",  action: { type: "train", stat: "resistance", energy: 30, cooldownKey: "resistance" } },
-        { id: "meditate",   label: "Méditer (Moral)",     action: { type: "train", stat: "moral",      energy: 10, cooldownKey: "moral" } },
-        { id: "sleep",      label: "Dormir",              action: { type: "sleep" } }
-      ]
-    },
-    showers: {
-      name: "Douches",
-      hotspots: [
-        { id: "toCorridor",   label: "Sortir",              action: { type: "move", leads_to: "corridor" } },
-        { id: "take_shower",  label: "Se doucher (+Moral)", action: { type: "shower_event" } }
-      ]
-    },
-    yard: {
-      name: "Cour de Promenade",
-      hotspots: [
-        { id: "toCorridor",  label: "Sortir",                  action: { type: "move", leads_to: "corridor" } },
-        { id: "train_yard",  label: "Musculation (Force)",     action: { type: "train", stat: "force",  energy: 35, cooldownKey: "force_yard" } },
-        { id: "jog",         label: "Course (Agilité)",        action: { type: "train", stat: "agilite",energy: 25, cooldownKey: "agilite" } },
-        { id: "observe",     label: "Observer (Intelligence)", action: { type: "train", stat: "intelligence", energy: 5, cooldownKey: "intelligence" } }
-      ]
-    },
-    canteen: {
-      name: "Cantine",
-      hotspots: [
-        { id: "toCorridor", label: "Sortir",              action: { type: "move", leads_to: "corridor" } },
-        { id: "eat",        label: "Manger le plateau",   action: { type: "eat_event" } }
-      ]
-    },
-    visiting_room: {
-      name: "Parloir",
-      hotspots: [
-        { id: "toCorridor", label: "Sortir",              action: { type: "move", leads_to: "corridor" } },
-        { id: "visit",      label: "Parler au visiteur",  action: { type: "visiting_event" } }
-      ]
-    },
-    entrance: {
-      name: "Entrée",
-      hotspots: [
-        { id: "toCorridor",  label: "Entrer dans la prison", action: { type: "move", leads_to: "corridor" } },
-        { id: "entranceid",  label: "Parler au garde",       action: { type: "entrance_event" } }
-      ]
-    },
-    common: {
-      name: "Salle commune",
-      hotspots: [
-        { id: "toCorridor", label: "Sortir",                   action: { type: "move", leads_to: "corridor" } },
-        { id: "tv",         label: "Regarder la télé (+Moral)", action: { type: "watch_tv" } },
-        { id: "cards",      label: "Jouer aux cartes",          action: { type: "play_cards" } }
-      ]
-    },
-    infirmary: {
-      name: "Infirmerie",
-      hotspots: [
-        { id: "toCorridor",      label: "Sortir",                  action: { type: "move", leads_to: "corridor" } },
-        { id: "infirmaryid",     label: "Parler à Jocelyn",        action: { type: "infirmary_event" } },
-        { id: "infirmary_steal", label: "Voler des produits",      action: { type: "infirmary_steal" } }
-      ]
-    },
-    office: {
-      name: "Bureau du Directeur",
-      hotspots: [
-        { id: "toCorridor", label: "Sortir",                 action: { type: "move", leads_to: "corridor" } },
-        { id: "privileges", label: "Demander des privilèges",action: { type: "upgrade" } },
-        { id: "rat_info",   label: "Balancer des infos",     action: { type: "rat_action" } }
-      ]
-    },
-    security: {
-      name: "Salle des Caméras",
-      hotspots: [
-        { id: "toCorridor", label: "Sortir",                    action: { type: "move", leads_to: "corridor" } },
-        { id: "hack",       label: "Désactiver les caméras",    action: { type: "hack" } }
-      ]
-    },
-    solitary: {
-      name: "Le Trou (Isolement)",
-      hotspots: [
-        { id: "wait", label: "Attendre la fin de peine", action: { type: "wait_punishment" } },
-        { id: "train_mind", label: "Entraîner l'esprit", action: { type: "train", stat: "intelligence", energy: 5, cooldownKey: "solitary_int" } }
-      ]
+    // Sélection pondérée
+    const totalWeight = pool.reduce((sum, ev) => sum + (ev.weight || 10), 0);
+    let rand = Math.random() * totalWeight;
+    let chosen = pool[pool.length - 1];
+    for (const ev of pool) {
+      rand -= (ev.weight || 10);
+      if (rand <= 0) { chosen = ev; break; }
     }
+
+    // Petite chance que l'événement ne se déclenche pas (imprévisibilité)
+    if (Math.random() < 0.25) return;
+
+    setActiveEvent(chosen);
+  };
+
+  const handleEventResolution = (effect) => {
+    setActiveEvent(null);
+    if (!effect) return;
+
+    if (effect.message)    addMessage(`📌 ${effect.message}`);
+    if (effect.reputation) modifyStat("reputation",   effect.reputation);
+    if (effect.moral)      modifyStat("moral",        effect.moral);
+    if (effect.force)      modifyStat("force",        effect.force);
+    if (effect.intelligence) modifyStat("intelligence", effect.intelligence);
+    if (effect.agilite)    modifyStat("agilite",      effect.agilite);
+    if (effect.resistance) modifyStat("resistance",   effect.resistance);
+    if (effect.energy)     setEnergy(e => clamp(e + effect.energy));
+    if (effect.item)       setInventory(prev => [...prev, effect.item]);
+    if (effect.npcTrust)   modifyTrust(effect.npcTrust.id, effect.npcTrust.value);
+
+    if (effect.removeItem) {
+      setInventory(prev => {
+        const copy = [...prev];
+        let count = effect.removeCount || 1;
+        const next = copy.filter(id => {
+          if (id === effect.removeItem && count > 0) { count--; return false; }
+          return true;
+        });
+        if (effect.itemGain) {
+          return [...next, ...Array(effect.itemGainCount || 1).fill(effect.itemGain)];
+        }
+        return next;
+      });
+    }
+
+    // Effet avec risque (ex : achat suspect)
+    if (effect.risk && Math.random() < effect.risk) {
+      addMessage("🚨 C'était un piège ! FOUILLE !");
+      triggerShakedown();
+    }
+  };
+
+  // ─── ÉCONOMIE ───────────────────────────────────────────
+  const buyItem = (itemId) => {
+    const item = ITEMS_DB[itemId];
+    const cost = Math.ceil(item.value / 5);
+    const playerCigs = inventory.filter(id => id === "cigarettes").length;
+    if (playerCigs >= cost) {
+      setInventory(prev => {
+        let count = 0;
+        const filtered = prev.filter(id => {
+          if (id === "cigarettes" && count < cost) { count++; return false; }
+          return true;
+        });
+        return [...filtered, itemId];
+      });
+      addMessage(`🛒 Acheté : ${item.name} (-${cost} 🚬)`);
+    } else {
+      addMessage("⚠️ Pas assez de cigarettes !");
+    }
+  };
+
+  const sellItem = (itemId) => {
+    const item = ITEMS_DB[itemId];
+    const gain = Math.floor((item?.value || 0) / 10);
+    setInventory(prev => {
+      const newInv = [...prev];
+      const idx = newInv.indexOf(itemId);
+      if (idx > -1) {
+        newInv.splice(idx, 1);
+        return [...newInv, ...Array(gain).fill("cigarettes")];
+      }
+      return prev;
+    });
+    if (gain > 0) addMessage(`💰 Vendu ${item.name} pour ${gain} 🚬`);
+  };
+
+  // ─── FOUILLE ────────────────────────────────────────────
+  const triggerShakedown = () => {
+    setIsShakedown(true);
+    addMessage("🚨 FOUILLE ! Les gardes arrivent !");
+    setTimeout(() => {
+      setInventory(prev => {
+        const illegal = prev.filter(id => ITEMS_DB[id]?.illegal);
+        if (illegal.length > 0)
+          addMessage(`🚫 Confisqué : ${illegal.map(id => ITEMS_DB[id].name).join(", ")}`);
+        return prev.filter(id => !ITEMS_DB[id]?.illegal);
+      });
+      setIsShakedown(false);
+    }, 2000);
+  };
+
+  // ─── UTILISATION D'OBJETS ───────────────────────────────
+  const useItem = (id, index) => {
+    if (id === "livre_adulte") {
+      modifyStat("moral",        30);
+      modifyStat("intelligence",  1);
+      addMessage("📖 Lecture terminée. +30 Moral, +1 Intelligence.");
+      progressQuest("use_item", { itemId: "livre_adulte" });
+    } else if (id === "cigarettes") {
+      modifyStat("moral",       10);
+      modifyStat("reputation",   1);
+      addMessage("🚬 Pause clope. +10 Moral, +1 Rép.");
+    } else if (id === "dopant") {
+      modifyStat("force",       5);
+      modifyStat("resistance",  3);
+      modifyStat("moral",      -5);
+      addMessage("🧪 Dopant absorbé. +5 Force, +3 Résistance. −5 Moral.");
+    } else if (id === "sedatif") {
+      modifyStat("moral",      10);
+      setEnergy(e => clamp(e + 30));
+      addMessage("💊 Sédatif pris. +10 Moral, +30 Énergie.");
+    } else if (id === "photo_famille") {
+      modifyStat("moral",      15);
+      addMessage("🖼️ Tu regardes la photo. Le moral remonte légèrement.");
+      return; // Ne pas consommer
+    } else return;
+
+    setInventory(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // ─── LOGIQUE PRINCIPALE DES ACTIONS ─────────────────────
+  const handleAction = (action) => {
+    if (isShakedown || activeEvent) return;
+    const now    = time % 1440;
+    const isNight = (now > 1320 || now < 360);
+    const cfg    = GAME_SETTINGS.PROGRESSION;
+
+    // 1. Déplacements
+    if (action.type === "move") {
+      if (isNight && !["cell", "solitary"].includes(action.leads_to)) {
+        const trust      = relations["garde_corridor"] || 0;
+        const riskReduce = trust > 50 ? 0.25 : 0;          // Garde corrompu réduit le risque
+        const patrolInfo = quests.some(q => q.id === "quest_rat_network" && q.status === "completed");
+        const baseRisk   = patrolInfo ? 0.45 : 0.75;        // Info patrouilles = risque réduit
+        const risk       = Math.max(0, baseRisk - (stats.agilite * 0.025) - riskReduce);
+        if (Math.random() < risk) {
+          addMessage("🚨 PATROUILLE ! Direction le trou !");
+          modifyStat("reputation", -5);
+          setTime(t => t + 600);
+          setCurrentRoom("solitary");
+          return;
+        }
+      }
+      if (!isNight && Math.random() < 0.07) triggerShakedown();
+      setCurrentRoom(action.leads_to);
+      setTime(t => t + 10);
+      tryTriggerRandomEvent(action.leads_to);
+    }
+
+    // 2. Cantine
+    else if (action.type === "eat_event") {
+      const sched = WORLD_DATA.schedule;
+      const isOpen = (now >= sched.canteen.start && now <= sched.canteen.end) ||
+                     (now >= sched.canteen_evening.start && now <= sched.canteen_evening.end);
+      if (!isOpen) return addMessage("🚫 La cantine est fermée.");
+      setEnergy(e => clamp(e + 40));
+      modifyStat("moral", 3);
+      setTime(t => t + 30);
+      addMessage("🍴 Repas avalé. +40 Énergie, +3 Moral.");
+      progressQuest("eat");
+    }
+
+    // 3. Entraînement (avec cooldown et gains réduits)
+    else if (action.type === "train") {
+      const key       = action.cooldownKey || action.stat;
+      const lastTrain = trainCooldowns[key] || 0;
+      const minWait   = cfg.COOLDOWN_TRAIN_MINUTES;
+
+      if (time - lastTrain < minWait && lastTrain !== 0) {
+        const remaining = minWait - (time - lastTrain);
+        addMessage(`⏳ Trop tôt pour reprendre. Attends encore ${remaining} min.`);
+        return;
+      }
+      if (energy < action.energy) return addMessage("⚠️ Trop fatigué...");
+
+      const gain = cfg.TRAIN_GAIN; // +1 par défaut
+      modifyStat(action.stat, gain);
+      setEnergy(e => clamp(e - action.energy));
+      setTime(t => t + 45);
+      setTrainCooldowns(prev => ({ ...prev, [key]: time }));
+      addMessage(`💪 +${gain} ${action.stat}. Énergie −${action.energy}.`);
+      progressQuest("train", { stat: action.stat });
+    }
+
+    // 4. Parloir
+    else if (action.type === "visiting_event") {
+      setTime(t => t + 60);
+      if (stats.reputation >= 30) {
+        const gift = Math.random() > 0.5 ? "cigarettes" : "livre_adulte";
+        setInventory(prev => [...prev, gift]);
+        addMessage(`🎁 Visite : Ton contact t'a donné : ${ITEMS_DB[gift].name}`);
+      } else {
+        modifyStat("moral", 15);
+        addMessage("👋 Visite : Voir un visage ami remonte le moral. +15 Moral.");
+      }
+    }
+
+    // 5. Sommeil
+    else if (action.type === "sleep") {
+      setTime(480);
+      setEnergy(100);
+      setTrainCooldowns({}); // Reset des cooldowns au réveil
+      modifyStat("moral", 3);
+      addMessage("🌞 Une nouvelle journée commence. Les cooldowns sont réinitialisés.");
+      setCurrentRoom("cell");
+      progressQuest("sleep");
+    }
+
+    // 6. Fin de punition
+    else if (action.type === "wait_punishment") {
+      setCurrentRoom("cell");
+      setTime(t => t + 60);
+      modifyStat("moral", -5);
+      addMessage("⏰ Fin de peine. Retour en cellule. −5 Moral.");
+    }
+
+    // 7. Douche
+    else if (action.type === "shower_event") {
+      modifyStat("moral",  8);
+      setTime(t => t + 20);
+      setEnergy(e => clamp(e + 5));
+      addMessage("🚿 Douche froide. +8 Moral, léger regain d'énergie.");
+      tryTriggerRandomEvent("showers");
+    }
+
+    // 8. Regarder la télé
+    else if (action.type === "watch_tv") {
+      modifyStat("moral", 5);
+      setTime(t => t + 30);
+      addMessage("📺 Un show de bas étage. +5 Moral. Le cerveau fond un peu.");
+    }
+
+    // 9. Jouer aux cartes
+    else if (action.type === "play_cards") {
+      const win = Math.random() < 0.45;
+      if (win) {
+        setInventory(prev => [...prev, "cigarettes"]);
+        addMessage("🃏 Tu as gagné la partie ! +1 Cigarette.");
+      } else {
+        addMessage("🃏 Pas de chance cette fois. Tu perds quelques minutes.");
+      }
+      setTime(t => t + 20);
+    }
+
+    // 10. Infirmerie
+    else if (action.type === "infirmary_event") {
+      const trust = relations["Jocelyn"] || 0;
+      const hpBonus = trust >= 40 ? 30 : 15;
+      setEnergy(e => clamp(e + hpBonus));
+      modifyStat("moral", 5);
+      setTime(t => t + 20);
+      addMessage(`🏥 Jocelyn te soigne. +${hpBonus} Énergie, +5 Moral.`);
+    }
+
+    else if (action.type === "infirmary_steal") {
+      if (Math.random() < 0.5) {
+        setInventory(prev => [...prev, "sedatif"]);
+        addMessage("💊 Tu as discrètement pris un sédatif. 🤫");
+        modifyTrust("Jocelyn", -5);
+      } else {
+        addMessage("🚨 Jocelyn t'a vu ! Elle est déçue.");
+        modifyStat("reputation", -3);
+        modifyTrust("Jocelyn", -15);
+      }
+      setTime(t => t + 15);
+    }
+
+    // 11. Bureau — Demander des privilèges
+    else if (action.type === "upgrade") {
+      if (stats.intelligence >= 20 && stats.reputation >= 20) {
+        modifyStat("moral", 15);
+        setEnergy(e => clamp(e + 20));
+        addMessage("🖊️ Directeur accordé : meilleure literie. +15 Moral, +20 Énergie.");
+      } else {
+        addMessage("🚫 Le directeur t'ignore. (Intelligence et Réputation ≥ 20 requises)");
+      }
+      setTime(t => t + 30);
+    }
+
+    // 12. Bureau — Balancer
+    else if (action.type === "rat_action") {
+      modifyStat("reputation",   -10);
+      modifyStat("intelligence",   2);
+      modifyStat("moral",         -8);
+      setTime(t => t + 30);
+      addMessage("🐀 Tu as vendu des informations. −10 Rép (si ça se sait), +2 Intelligence.");
+    }
+
+    // 13. Hack des caméras
+    else if (action.type === "hack") {
+      if (stats.intelligence >= 15) {
+        addMessage("💻 Tu désactives les caméras pour 2h. La voie est libre.");
+        setTime(t => t + 60);
+        progressQuest("action", { actionType: "hack" });
+      } else {
+        addMessage("💻 Trop complexe. Intelligence insuffisante (≥15 requise).");
+      }
+    }
+
+    // 14. Entrée
+    else if (action.type === "entrance_event") {
+      addMessage("👮 Le garde d'entrée te dévisage mais ne dit rien.");
+      setTime(t => t + 10);
+    }
+
+    // 15. Actions sociales
+    else if (action.type === "social") {
+      handleSocialAction(action);
+    }
+  };
+
+  // ─── INTERACTIONS SOCIALES (enrichies) ──────────────────
+  const handleSocialAction = ({ subType, npc, specialAction }) => {
+    const trustLevel  = relations[npc.id] || 0;
+    const npcData     = NPCS_DB[npc.id] || npc;
+    const isAssocial  = npc.personnality === "associal";
+
+    // Mise à jour du dialogue contextuel selon la confiance
+    const getDialog = () => {
+      if (!npcData.trustLevels) return (npc.dialogs || ["..."])[Math.floor(Math.random() * ((npc.dialogs || ["..."]).length))];
+      const levels = Object.entries(npcData.trustLevels)
+        .map(([k, v]) => [parseInt(k), v])
+        .sort((a, b) => a[0] - b[0]);
+      let bestDialog = levels[0][1];
+      for (const [threshold, dialog] of levels) {
+        if (trustLevel >= threshold) bestDialog = dialog;
+      }
+      return bestDialog;
+    };
+
+    if (subType === "talk") {
+      const successChance = 0.3 + (stats.intelligence / 120);
+      if (Math.random() < successChance) {
+        modifyStat("reputation", 1);
+        modifyTrust(npc.id, 3);
+        addMessage(`💬 ${npc.name} : "${getDialog()}" (+1 Rép, +3 Confiance)`);
+      } else {
+        addMessage(`💬 ${npc.name} : "${getDialog()}"`);
+      }
+      progressQuest("talk_npc", { npcId: npc.id });
+    }
+
+    else if (subType === "charm") {
+      if (isAssocial || (npcData.charm_threshold && trustLevel < npcData.charm_threshold)) {
+        addMessage(`🚫 ${npc.name} t'envoie balader. Gagne d'abord sa confiance.`);
+        modifyTrust(npc.id, -2);
+        return;
+      }
+      const charismeMult = stats.intelligence / 80;
+      const gain         = Math.floor(5 + charismeMult * 5);
+      modifyTrust(npc.id, gain);
+      addMessage(`❤️ Tu charmes ${npc.name}. +${gain} Confiance.`);
+      progressQuest("charm_npc", { npcId: npc.id });
+    }
+
+    else if (subType === "humiliate") {
+      modifyStat("reputation",  4);
+      modifyStat("moral",      -5);
+      modifyTrust(npc.id,      -15);
+      addMessage(`🔥 Humiliation publique de ${npc.name}. +4 Rép. −5 Moral.`);
+      progressQuest("humiliate");
+      if ((npc.force || 0) > stats.force - 5) {
+        addMessage(`😡 ${npc.name} explose de rage et attaque !`);
+        setTimeout(() => setCombatNpc(npc), 800);
+      }
+    }
+
+    else if (subType === "specialAction") {
+      handleSpecialNpcAction(npc, specialAction);
+    }
+  };
+
+  // ─── ACTION SPÉCIALE PNJ ────────────────────────────────
+  const handleSpecialNpcAction = (npc, actionType) => {
+    const trust = relations[npc.id] || 0;
+    const required = NPCS_DB[npc.id]?.specialUnlock?.trust || 999;
+
+    if (trust < required) {
+      addMessage(`🔒 Confiance insuffisante avec ${npc.name}. (${trust}/${required})`);
+      return;
+    }
+
+    if (actionType === "bribe_guard") {
+      const cigs = inventory.filter(i => i === "cigarettes").length;
+      if (cigs < 5) return addMessage("⚠️ Pas assez de cigarettes pour corrompre Jones. (5 requis)");
+      setInventory(prev => {
+        let c = 5;
+        return prev.filter(i => { if (i === "cigarettes" && c > 0) { c--; return false; } return true; });
+      });
+      modifyTrust("garde_corridor", 20);
+      addMessage("👮 Jones empoche discrètement. Il sera plus souple cette nuit. +20 Confiance.");
+    }
+
+    else if (actionType === "recruit_ally") {
+      addMessage("🤜 La Brute accepte de couvrir tes arrières. Elle interviendra si tu es attaqué.");
+      modifyStat("reputation", 5);
+    }
+
+    else if (actionType === "get_plan") {
+      if (inventory.includes("plan_prison")) return addMessage("T'as déjà le plan.");
+      const cigs = inventory.filter(i => i === "cigarettes").length;
+      if (cigs < 8) return addMessage("⚠️ Le Rat veut 8 cigarettes pour le plan.");
+      setInventory(prev => {
+        let c = 8;
+        return [...prev.filter(i => { if (i === "cigarettes" && c > 0) { c--; return false; } return true; }), "plan_prison"];
+      });
+      addMessage("🗺️ Le Rat t'a remis le plan de la prison. L'évasion se précise.");
+    }
+
+    else if (actionType === "learn_secret") {
+      modifyStat("intelligence", 3);
+      addMessage("📖 Le Vieux te révèle quelque chose que les gardes ne voulaient pas que tu saches. +3 Intelligence.");
+    }
+
+    else if (actionType === "escape_help") {
+      if (inventory.includes("sedatif")) {
+        addMessage("💉 Jocelyn t'explique comment utiliser le sédatif sur un gardien. La voie du couloir est praticable.");
+      } else {
+        addMessage("💉 Jocelyn peut t'aider, mais il te faut d'abord un sédatif.");
+      }
+    }
+  };
+
+  // ─── GESTION DES CLICS SUR PNJ ──────────────────────────
+  const handleNpcClick = (npc) => {
+    setInteractingNpc(npc);
+    // Backstory au premier clic si confiance = 0
+    const trust = relations[npc.id] || 0;
+    const npcData = NPCS_DB[npc.id];
+    if (npcData && trust === 0 && npcData.backstory) {
+      setTimeout(() => addMessage(`📌 ${npc.name} : "${npcData.backstory}"`), 300);
+    }
+  };
+
+  // ─── COMBAT : VICTOIRE / DÉFAITE ────────────────────────
+  const handleCombatWin = () => {
+    const npc = combatNpc;
+    modifyStat("reputation", 15);
+    modifyTrust(npc.id, -20);
+    addMessage(`🏆 Victoire contre ${npc.name} ! +15 Rép.`);
+    progressQuest("combat_win", { npcId: npc.id });
+
+    // Drop d'objet
+    if (npc.inventory && npc.inventory.length > 0) {
+      const drop = npc.inventory[Math.floor(Math.random() * npc.inventory.length)];
+      setInventory(prev => [...prev, drop]);
+      addMessage(`💰 ${npc.name} a lâché : ${ITEMS_DB[drop]?.name || drop}`);
+    }
+    setCombatNpc(null);
+  };
+
+  const handleCombatLose = () => {
+    setEnergy(20);
+    modifyStat("reputation", -3);
+    addMessage("🤕 Tu t'es fait étaler... −3 Rép.");
+    setCurrentRoom("infirmary");
+    setCombatNpc(null);
+  };
+
+  // ─── REJOINDRE UNE FACTION ──────────────────────────────
+  const joinFaction = (factionId) => {
+    setPlayerFaction(factionId);
+    const faction = WORLD_DATA.gangs[factionId];
+    modifyStat("reputation", 8);
+    addMessage(`⚔️ Tu rejoins "${faction.name}". +8 Rép.`);
+    progressQuest("join_faction");
+    setInteractingNpc(null);
+  };
+
+  // ─── NOTIFICATION QUÊTE (auto-dismiss) ──────────────────
+  React.useEffect(() => {
+    if (!questNotif) return;
+    const t = setTimeout(() => setQuestNotif(null), 4000);
+    return () => clearTimeout(t);
+  }, [questNotif]);
+
+  // ─── RENDU ──────────────────────────────────────────────
+  const faction = WORLD_DATA.gangs[playerFaction];
+
+  return React.createElement("div", {
+    className: `min-h-screen p-4 max-w-5xl mx-auto space-y-4 ${isShakedown ? "opacity-40 pointer-events-none" : ""}`
   },
 
-  npcs: {
-    cell:          [],
-    corridor:      [ NPCS_DB["garde_corridor"] ],
-    showers:       [ { ...NPCS_DB["dealer"], x: "70%", y: "60%" } ],
-    yard:          [
-      { ...NPCS_DB["brute"], x: "40%", y: "55%" },
-      { ...NPCS_DB["rat"],   x: "75%", y: "60%" }
-    ],
-    canteen:       [ { ...NPCS_DB["vieux"], x: "30%", y: "50%" } ],
-    infirmary:     [ { ...NPCS_DB["Jocelyn"], x: "30%", y: "50%" } ],
-    office:        [],
-    common:        [],
-    entrance:      [],
-    visiting_room: [],
-    security:      [],
-    solitary:      []
-  }
-};
+    // ── HUD ─────────────────────────────────────────────
+    React.createElement("div", { className: "grid grid-cols-3 md:grid-cols-10 gap-2 bg-gray-900 p-4 rounded-xl border border-blue-900/40 shadow-xl text-white" },
+      React.createElement("div", null, React.createElement("p", { className: "text-[8px] text-green-400 font-bold uppercase" }, "⚡ Énergie"),  React.createElement("p", { className: "text-lg font-black" }, energy + "%")),
+      React.createElement("div", null, React.createElement("p", { className: "text-[8px] text-yellow-500 font-bold uppercase" }, "🔥 Rép"),     React.createElement("p", { className: "text-lg font-black" }, stats.reputation)),
+      React.createElement("div", null, React.createElement("p", { className: "text-[8px] text-red-500 font-bold uppercase" }, "💪 Force"),    React.createElement("p", { className: "text-lg font-black" }, stats.force)),
+      React.createElement("div", null, React.createElement("p", { className: "text-[8px] text-pink-500 font-bold uppercase" }, "❤️ Moral"),    React.createElement("p", { className: "text-lg font-black" }, stats.moral)),
+      React.createElement("div", null, React.createElement("p", { className: "text-[8px] text-purple-400 font-bold uppercase" }, "🏃 Agi"),     React.createElement("p", { className: "text-lg font-black" }, stats.agilite)),
+      React.createElement("div", null, React.createElement("p", { className: "text-[8px] text-orange-400 font-bold uppercase" }, "🛡️ Rés"),    React.createElement("p", { className: "text-lg font-black" }, stats.resistance)),
+      React.createElement("div", null, React.createElement("p", { className: "text-[8px] text-blue-400 font-bold uppercase" }, "🧠 Int"),      React.createElement("p", { className: "text-lg font-black" }, stats.intelligence)),
+      React.createElement("div", null, React.createElement("p", { className: "text-[8px] text-blue-300 font-bold uppercase" }, "🕒 Heure"),    React.createElement("p", { className: "text-lg font-black" }, formatTime(time))),
+      React.createElement("div", null, React.createElement("p", { className: `text-[8px] font-bold uppercase ${faction.color}` }, "⚔️ Faction"), React.createElement("p", { className: `text-[10px] font-black ${faction.color}` }, faction.name)),
+      React.createElement("div", { className: "flex items-end justify-end" },
+        React.createElement("button", {
+          onClick: () => setShowQuestLog(true),
+          className: "px-3 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-600 text-white font-black rounded text-[10px] uppercase transition-all"
+        }, "📋")
+      )
+    ),
+
+    // ── VUE DE LA SALLE ─────────────────────────────────
+    React.createElement(RoomView, {
+      roomId:         currentRoom,
+      npcs:           (WORLD_DATA.npcs[currentRoom] || []).filter(n => n && n.id),
+      hotspots:       WORLD_DATA.rooms[currentRoom]?.hotspots || [],
+      onHotspotClick: handleAction,
+      onNpcClick:     handleNpcClick
+    }),
+
+    // ── LOGS & INVENTAIRE ────────────────────────────────
+    React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-4 h-44" },
+      React.createElement("div", { className: "bg-black/60 p-4 rounded-xl overflow-y-auto border border-white/5 font-mono text-[11px] text-gray-400" },
+        messages.map(m => React.createElement("div", { key: m.id, className: "mb-1 border-l-2 border-blue-900 pl-2" }, `> ${m.text}`))
+      ),
+      React.createElement("div", { className: "bg-gray-900/50 p-4 rounded-xl border border-white/5" },
+        React.createElement("h3", { className: "text-[10px] text-gray-500 uppercase font-black mb-3" }, "Poches"),
+        React.createElement("div", { className: "flex flex-wrap gap-2" },
+          inventory.map((id, i) =>
+            React.createElement("div", {
+              key: i,
+              onClick:   () => useItem(id, i),
+              title:     ITEMS_DB[id]?.name || id,
+              className: `item-slot ${ITEMS_DB[id]?.illegal ? "item-illegal" : ""} cursor-pointer`
+            }, ITEMS_DB[id]?.icon || "❓")
+          )
+        )
+      )
+    ),
+
+    // ── NOTIFICATION QUÊTE ───────────────────────────────
+    questNotif && React.createElement("div", {
+      className: "fixed top-6 right-6 z-50 bg-green-900 border-2 border-green-500 rounded-xl px-6 py-4 shadow-2xl max-w-xs animate-bounce"
+    },
+      React.createElement("p", { className: "text-green-300 text-[9px] font-bold uppercase mb-1" }, "✅ Quête terminée !"),
+      React.createElement("p", { className: "text-white font-black text-sm" }, `${questNotif.icon} ${questNotif.title}`),
+      React.createElement("p", { className: "text-green-400 text-[10px] mt-1" }, questNotif.message)
+    ),
+
+    // ── MODALE PNJ ───────────────────────────────────────
+    interactingNpc && React.createElement("div", { className: "fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm" },
+      React.createElement("div", { className: "bg-gray-900 border-2 border-blue-600 p-6 rounded-xl max-w-sm w-full" },
+
+        // En-tête PNJ
+        React.createElement("div", { className: "text-center mb-4" },
+          React.createElement("div", { className: "text-4xl mb-2" }, NPCS_DB[interactingNpc.id]?.icon || interactingNpc.icon || "👤"),
+          React.createElement("h2", { className: "text-white font-black text-2xl" }, interactingNpc.name),
+          React.createElement("p", { className: `text-[11px] font-bold uppercase mb-1 ${WORLD_DATA.gangs[NPCS_DB[interactingNpc.id]?.faction]?.color || "text-gray-500"}` },
+            WORLD_DATA.gangs[NPCS_DB[interactingNpc.id]?.faction]?.name || "Indépendant"
+          ),
+          React.createElement("p", { className: "text-pink-500 text-xs" }, `Confiance : ${relations[interactingNpc.id] || 0} pts`)
+        ),
+
+        // Boutons d'interaction
+        React.createElement("div", { className: "grid grid-cols-1 gap-2" },
+
+          // Trade / Fight
+          (interactingNpc.type === "trade" || interactingNpc.type === "hybrid") &&
+            React.createElement("button", { onClick: () => { setTradeNpc(interactingNpc); setInteractingNpc(null); }, className: "py-3 bg-yellow-700 hover:bg-yellow-600 text-white font-bold rounded transition-colors" }, "🛒 TROQUER"),
+
+          (interactingNpc.type === "fight" || interactingNpc.type === "hybrid") &&
+            React.createElement("button", { onClick: () => { setCombatNpc(interactingNpc); setInteractingNpc(null); }, className: "py-3 bg-red-700 hover:bg-red-600 text-white font-bold rounded transition-colors" }, "💀 COMBATTRE"),
+
+          // Actions sociales
+          React.createElement("button", { onClick: () => { handleAction({ type: "social", subType: "talk",      npc: interactingNpc }); setInteractingNpc(null); }, className: "py-2 bg-gray-800 hover:bg-gray-700 text-blue-300 rounded transition-colors text-sm" }, "🗣️ Parler"),
+          React.createElement("button", { onClick: () => { handleAction({ type: "social", subType: "charm",     npc: interactingNpc }); setInteractingNpc(null); }, className: "py-2 bg-gray-800 hover:bg-gray-700 text-pink-300 rounded transition-colors text-sm" }, "✨ Charmer"),
+          React.createElement("button", { onClick: () => { handleAction({ type: "social", subType: "humiliate", npc: interactingNpc }); setInteractingNpc(null); }, className: "py-2 bg-gray-800 hover:bg-gray-700 text-orange-300 rounded transition-colors text-sm" }, "🔥 Humilier"),
+
+          // Action spéciale (si seuil de confiance atteint)
+          (() => {
+            const npcDef = NPCS_DB[interactingNpc.id];
+            if (!npcDef?.specialUnlock) return null;
+            const trust    = relations[interactingNpc.id] || 0;
+            const unlocked = trust >= npcDef.specialUnlock.trust;
+            return React.createElement("button", {
+              onClick: () => {
+                if (unlocked) {
+                  handleAction({ type: "social", subType: "specialAction", npc: interactingNpc, specialAction: npcDef.specialUnlock.action });
+                  setInteractingNpc(null);
+                }
+              },
+              className: `py-2 rounded text-sm font-bold border transition-colors ${
+                unlocked
+                  ? "border-green-600 bg-green-900/30 hover:bg-green-900/60 text-green-300"
+                  : "border-gray-800 bg-gray-900/20 text-gray-600 cursor-not-allowed"
+              }`
+            },
+              unlocked
+                ? `${npcDef.specialUnlock.label} (DÉVERROUILLÉ)`
+                : `🔒 Action spéciale (${trust}/${npcDef.specialUnlock.trust} confiance)`
+            );
+          })(),
+
+          // Rejoindre faction si applicable
+          playerFaction === "neutre" && NPCS_DB[interactingNpc.id]?.faction && NPCS_DB[interactingNpc.id]?.faction !== "guards" && NPCS_DB[interactingNpc.id]?.faction !== "neutre" &&
+            React.createElement("button", {
+              onClick: () => joinFaction(NPCS_DB[interactingNpc.id].faction),
+              className: "py-2 bg-gray-800 hover:bg-gray-700 text-purple-300 rounded transition-colors text-sm border border-purple-900"
+            }, `⚔️ Rejoindre "${WORLD_DATA.gangs[NPCS_DB[interactingNpc.id].faction]?.name}"`),
+
+          React.createElement("button", { onClick: () => setInteractingNpc(null), className: "mt-1 text-gray-500 text-[10px] hover:text-gray-400 transition-colors" }, "[ ANNULER ]")
+        )
+      )
+    ),
+
+    // ── MODALES COMBAT & TRADE ───────────────────────────
+    combatNpc && React.createElement(CombatModal, {
+      npc: combatNpc, stats, inventory,
+      onWin:  handleCombatWin,
+      onLose: handleCombatLose
+    }),
+
+    tradeNpc && React.createElement(TradeModal, {
+      npc: tradeNpc, inventory,
+      onBuy:   buyItem,
+      onSell:  sellItem,
+      onClose: () => setTradeNpc(null)
+    }),
+
+    // ── ÉVÉNEMENT ALÉATOIRE ──────────────────────────────
+    activeEvent && React.createElement(EventModal, {
+      event:     activeEvent,
+      stats,
+      inventory,
+      onResolve: handleEventResolution
+    }),
+
+    // ── JOURNAL DE QUÊTES ────────────────────────────────
+    showQuestLog && React.createElement(QuestLog, {
+      quests,
+      onClose: () => setShowQuestLog(false)
+    })
+  );
+}
